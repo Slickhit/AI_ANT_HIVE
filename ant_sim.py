@@ -671,6 +671,47 @@ class NurseAnt(BaseAnt):
         self.last_pos = (coords[0], coords[1])
 
 
+class Spider:
+    """Simple predator that patrols horizontally and attacks ants."""
+
+    def __init__(self, sim: "AntSim", x: int, y: int, energy: int = 50, health: int = 30) -> None:
+        self.sim = sim
+        self.energy = energy
+        self.health = health
+        self.start_x = x
+        self.direction = 1
+        self.patrol_range = 60
+        self.item = sim.canvas.create_oval(x, y, x + ANT_SIZE, y + ANT_SIZE, fill="brown")
+
+    def patrol(self) -> None:
+        dx = MOVE_STEP * self.direction
+        x1, _, x2, _ = self.sim.canvas.coords(self.item)
+        if x2 + dx > self.start_x + self.patrol_range or x1 + dx < self.start_x - self.patrol_range:
+            self.direction *= -1
+            dx = MOVE_STEP * self.direction
+        self.sim.canvas.move(self.item, dx, 0)
+        self.energy -= 0.1
+
+    def attack_ants(self) -> None:
+        for ant in self.sim.ants[:]:
+            if self.sim.check_collision(self.item, ant.item):
+                ant.consume_energy(20)
+                if ant.energy <= 0:
+                    self.sim.canvas.delete(ant.item)
+                    if hasattr(ant, "image_id"):
+                        self.sim.canvas.delete(ant.image_id)
+                    self.sim.ants.remove(ant)
+
+    def update(self) -> None:
+        if self.health <= 0 or self.energy <= 0:
+            if self in self.sim.predators:
+                self.sim.predators.remove(self)
+            self.sim.canvas.delete(self.item)
+            return
+        self.patrol()
+        self.attack_ants()
+
+
 class Queen:
     """Represents the colony's queen. Uses OpenAI for spawn decisions."""
 
@@ -1003,6 +1044,7 @@ class AntSim:
 
         self.food_drops: List[FoodDrop] = []
         self.eggs: List[Egg] = []
+        self.predators: List[Spider] = []
         self.selected_index = 0
         self.selection_highlight: int | None = None
         self.selection_tooltip: int | None = None
@@ -1037,6 +1079,7 @@ class AntSim:
             SoldierAnt(self, 255, 295, "orange"),
             NurseAnt(self, 275, 295, "pink"),
         ]
+        self.predators.append(Spider(self, 50, 50))
 
         # Stats
         self.food_collected: int = 0
@@ -1141,7 +1184,8 @@ class AntSim:
             f"Food Collected: {self.food_collected}\n"
             f"Fed to Queen: {self.queen_fed}\n"
             f"Ants Active: {len(self.ants)}\n"
-            f"Eggs: {len(self.eggs)}"
+            f"Eggs: {len(self.eggs)}\n"
+            f"Predators: {len(self.predators)}"
         )
 
     def update_sidebar(self) -> None:
@@ -1153,7 +1197,8 @@ class AntSim:
             f"Food: {self.food_collected}\n"
             f"Queen Hunger: {int(self.queen.hunger)}\n"
             f"Ants: {len(self.ants)}\n"
-            f"Eggs: {len(self.eggs)}"
+            f"Eggs: {len(self.eggs)}\n"
+            f"Predators: {len(self.predators)}"
         )
         self.ant_panel.configure(state="normal")
         self.ant_panel.delete("1.0", tk.END)
@@ -1181,6 +1226,9 @@ class AntSim:
         for ant in self.ants:
             ant.update()
             ant.update_energy_bar()
+
+        for predator in self.predators[:]:
+            predator.update()
 
         for egg in self.eggs[:]:
             egg.update()
