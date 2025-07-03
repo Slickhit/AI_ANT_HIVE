@@ -73,9 +73,14 @@ ANT_SPRITES = _load_sprites()
 
 
 # Utility to create a small glowing orb sprite
-def create_glowing_icon(size: int = 16, inner: str = "#ffff99", outer: str = "#ff9900") -> tk.PhotoImage:
+def create_glowing_icon(
+    size: int = 16, inner: str = "#ffff99", outer: str = "#ff9900"
+) -> tk.PhotoImage | None:
     """Return a circular gradient image used for food drops."""
-    img = tk.PhotoImage(width=size, height=size)
+    try:
+        img = tk.PhotoImage(width=size, height=size)
+    except Exception:
+        return None
     cx = cy = size / 2
     ir, ig, ib = int(inner[1:3], 16), int(inner[3:5], 16), int(inner[5:7], 16)
     or_, og, ob = int(outer[1:3], 16), int(outer[3:5], 16), int(outer[5:7], 16)
@@ -98,6 +103,8 @@ TILE_SAND = "sand"
 TILE_TUNNEL = "tunnel"
 TILE_ROCK = "rock"
 TILE_COLLAPSED = "collapsed"
+TILE_WATER = "water"
+TILE_FOOD_RICH = "food-rich"
 
 # Small base64 encoded textures to avoid binary files in the repository
 SAND_TEXTURE = (
@@ -124,12 +131,16 @@ class Terrain:
         TILE_TUNNEL: "#806517",
         TILE_ROCK: "#7f7f7f",
         TILE_COLLAPSED: "black",
+        TILE_WATER: "#3399ff",
+        TILE_FOOD_RICH: "#aaffaa",
     }
 
     texture_data = {
         TILE_SAND: SAND_TEXTURE,
         TILE_TUNNEL: TUNNEL_TEXTURE,
         TILE_ROCK: ROCK_TEXTURE,
+        TILE_WATER: SAND_TEXTURE,
+        TILE_FOOD_RICH: SAND_TEXTURE,
     }
 
     def __init__(self, width: int, height: int, canvas: tk.Canvas) -> None:
@@ -265,18 +276,19 @@ class FoodDrop:
         if hasattr(sim.canvas, "create_image"):
             self.icon = create_glowing_icon(FOOD_SIZE)
             self.flash_icon = create_glowing_icon(FOOD_SIZE, inner="#ffffff", outer="#ffcc00")
-            self.image_item = sim.canvas.create_image(x, y, image=self.icon, anchor="nw")
-            self.tooltip = sim.canvas.create_text(
-                x + FOOD_SIZE / 2,
-                y - 10,
-                text=f"{self.charges} left",
-                state="hidden",
-                fill="black",
-                font=("Arial", 8),
-            )
-            sim.canvas.tag_bind(self.image_item, "<Enter>", self._show_tooltip)
-            sim.canvas.tag_bind(self.image_item, "<Leave>", self._hide_tooltip)
-            sim.canvas.tag_bind(self.image_item, "<Button-1>", self._on_click)
+            if self.icon is not None:
+                self.image_item = sim.canvas.create_image(x, y, image=self.icon, anchor="nw")
+                self.tooltip = sim.canvas.create_text(
+                    x + FOOD_SIZE / 2,
+                    y - 10,
+                    text=f"{self.charges} left",
+                    state="hidden",
+                    fill="black",
+                    font=("Arial", 8),
+                )
+                sim.canvas.tag_bind(self.image_item, "<Enter>", self._show_tooltip)
+                sim.canvas.tag_bind(self.image_item, "<Leave>", self._hide_tooltip)
+                sim.canvas.tag_bind(self.image_item, "<Button-1>", self._on_click)
 
     def _show_tooltip(self, _event=None) -> None:
         if self.tooltip is not None:
@@ -392,11 +404,16 @@ class BaseAnt:
             tile_x = int((new_x1 + ANT_SIZE / 2) // TILE_SIZE)
             tile_y = int((new_y1 + ANT_SIZE / 2) // TILE_SIZE)
             tile = self.terrain.get_cell(tile_x, tile_y)
-            if tile in (TILE_ROCK, TILE_COLLAPSED):
+            if tile in (TILE_ROCK, TILE_COLLAPSED, TILE_WATER):
                 return
             if tile == TILE_SAND:
                 self.terrain.set_cell(tile_x, tile_y, TILE_TUNNEL)
                 cost += 1  # digging through sand costs extra
+            elif tile == TILE_FOOD_RICH:
+                if hasattr(self.sim, "food_drops") and random.random() < 0.1:
+                    fx = tile_x * TILE_SIZE
+                    fy = tile_y * TILE_SIZE
+                    self.sim.food_drops.append(FoodDrop(self.sim, fx, fy))
         if self.energy < cost:
             return
         self.energy -= cost

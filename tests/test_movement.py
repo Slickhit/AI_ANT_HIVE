@@ -14,6 +14,8 @@ from ant_sim import (
     TILE_SIZE,
     TILE_TUNNEL,
     TILE_SAND,
+    TILE_WATER,
+    TILE_FOOD_RICH,
 )
 
 
@@ -150,3 +152,20 @@ class TestBaseAntMovement:
         ant = BaseAnt(sim, 0, 0, energy=10)
         ant.attempt_move(TILE_SIZE, 0)
         assert ant.energy == 9
+
+    def test_water_tile_blocks_movement(self):
+        sim = FakeSimWithTerrain()
+        sim.terrain.set_cell(1, 0, TILE_WATER)
+        ant = BaseAnt(sim, 0, 0, energy=10)
+        ant.attempt_move(TILE_SIZE, 0)
+        assert sim.canvas.coords(ant.item) == [0, 0, ANT_SIZE, ANT_SIZE]
+        assert ant.energy == 10
+
+    def test_food_rich_tile_spawns_food(self, monkeypatch):
+        sim = FakeSimWithTerrain()
+        sim.food_drops = []
+        sim.terrain.set_cell(1, 0, TILE_FOOD_RICH)
+        monkeypatch.setattr(random, "random", lambda: 0.0)
+        ant = BaseAnt(sim, 0, 0, energy=10)
+        ant.attempt_move(TILE_SIZE, 0)
+        assert len(sim.food_drops) == 1
