@@ -6,7 +6,19 @@ import random
 import tkinter as tk
 from typing import List, Tuple
 
-import openai
+try:
+    import openai
+except Exception:  # pragma: no cover - optional dependency
+    class _DummyChat:
+        @staticmethod
+        def create(*_args, **_kwargs):
+            raise ModuleNotFoundError("openai is required for this feature")
+
+    class _DummyOpenAI:
+        api_key = ""
+        ChatCompletion = _DummyChat
+
+    openai = _DummyOpenAI()
 
 openai.api_key = os.getenv("OPENAI_API_KEY", "")
 
@@ -373,6 +385,29 @@ class Queen:
         self.fed: int = 0
         self.move_counter: int = 0
 
+        # Animation assets (only if using a real Tk canvas)
+        self.glow_item: int | None = None
+        self.glow_state: int = 0
+        self.expression_item: int | None = None
+
+        if isinstance(sim.canvas, tk.Canvas):
+            self.glow_item = sim.canvas.create_oval(
+                x - 5,
+                y - 10,
+                x + ANT_SIZE + 5,
+                y + ANT_SIZE + 10,
+                outline="yellow",
+                width=2,
+            )
+            sim.canvas.tag_lower(self.glow_item, self.item)
+            self.expression_item = sim.canvas.create_text(
+                x + ANT_SIZE / 2,
+                y - 15,
+                text=":)",
+                font=("Arial", 12),
+            )
+            self.animate_glow()
+
     def feed(self, amount: float = 10) -> None:
         """Increase the queen's hunger level when fed."""
         self.hunger = min(100, self.hunger + amount)
@@ -460,6 +495,16 @@ class Queen:
                 coords = self.sim.canvas.coords(ant.item)
             self.ant_positions[ant.item] = (coords[0], coords[1])
 
+    def animate_glow(self) -> None:
+        """Pulse the glow outline to give the queen some life."""
+        if self.glow_item is None:
+            return
+        self.glow_state = (self.glow_state + 1) % 2
+        width = 1 if self.glow_state == 0 else 3
+        color = "yellow" if self.glow_state == 0 else "orange"
+        self.sim.canvas.itemconfigure(self.glow_item, width=width, outline=color)
+        self.sim.master.after(200, self.animate_glow)
+
     def update(self) -> None:
         """Handle hunger and periodically spawn new worker ants."""
         self.hunger -= 0.1
@@ -479,6 +524,21 @@ class Queen:
         else:
             self.sim.canvas.itemconfigure(self.item, fill="purple")
             self.mad = False
+
+        # Update expression graphic
+        if self.mad:
+            expr = ">:("
+        elif self.hunger > 80:
+            expr = ":D"
+        elif self.hunger < 40:
+            expr = ":("
+        else:
+            expr = ":|"
+        if self.expression_item is not None:
+            x1, y1, x2, _ = self.sim.canvas.coords(self.item)
+            cx = (x1 + x2) / 2
+            self.sim.canvas.coords(self.expression_item, cx, y1 - 15)
+            self.sim.canvas.itemconfigure(self.expression_item, text=expr)
 
         if self.mad:
             self.rescue_stuck_ants()
@@ -510,6 +570,8 @@ class AntSim:
 
         self.food_drops: List[FoodDrop] = []
         self.selected_index = 0
+        self.selection_highlight: int | None = None
+        self.selection_tooltip: int | None = None
         self.master.bind("<Tab>", self.cycle_selection)
 
         # Pheromone grid
@@ -526,13 +588,6 @@ class AntSim:
             ry = random.randint(self.terrain.height // 2, self.terrain.height - 1)
             self.terrain.set_cell(rx, ry, TILE_ROCK)
 
-
-        # Pheromone grid
-        self.grid_width = WINDOW_WIDTH // TILE_SIZE
-        self.grid_height = WINDOW_HEIGHT // TILE_SIZE
-        self.pheromones: list[list[float]] = [
-            [0.0 for _ in range(self.grid_height)] for _ in range(self.grid_width)
-        ]
 
         # Entities
         self.food: int = self.canvas.create_rectangle(
@@ -577,11 +632,47 @@ class AntSim:
         all_entities = [self.queen] + self.ants
         self.selected_index = (self.selected_index + 1) % len(all_entities)
         sel = all_entities[self.selected_index]
+
+        if self.selection_highlight:
+            self.canvas.delete(self.selection_highlight)
+            self.selection_highlight = None
+        if self.selection_tooltip:
+            self.canvas.delete(self.selection_tooltip)
+            self.selection_tooltip = None
+
         if sel is self.queen:
             thought = self.queen.thought()
             self.master.title(f"Queen: {thought}")
         else:
             self.master.title(f"Selected: {sel.role}")
+
+        x1, y1, x2, y2 = self.canvas.coords(sel.item)
+        self.selection_highlight = self.canvas.create_rectangle(
+            x1 - 2,
+            y1 - 2,
+            x2 + 2,
+            y2 + 2,
+            outline="cyan",
+            width=2,
+        )
+        cx = (x1 + x2) / 2
+        label = "Queen" if sel is self.queen else sel.role
+        self.selection_tooltip = self.canvas.create_text(
+            cx,
+            y1 - 10,
+            text=label,
+            fill="cyan",
+            font=("Arial", 10),
+        )
+        self.master.after(1000, self.clear_selection_marks)
+
+    def clear_selection_marks(self) -> None:
+        if self.selection_highlight:
+            self.canvas.delete(self.selection_highlight)
+            self.selection_highlight = None
+        if self.selection_tooltip:
+            self.canvas.delete(self.selection_tooltip)
+            self.selection_tooltip = None
 
     def deposit_pheromone(self, x: float, y: float, amount: float) -> None:
         gx = int(x) // TILE_SIZE
