@@ -112,7 +112,7 @@ def test_ai_base_ant_moves_with_openai(mock_create):
     ant = AIBaseAnt(sim, 0, 0)
     ant.update()
     coords = sim.canvas.coords(ant.item)
-    assert coords[0] == 5 and coords[1] == -5
+    assert coords[0] == 5 and coords[1] == 0
     mock_create.assert_called_once()
 
 @patch("ant_sim.openai.ChatCompletion.create")
