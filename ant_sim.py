@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import random
+import time
 import tkinter as tk
 from typing import List, Tuple
 
@@ -1074,6 +1075,25 @@ class AntSim:
             highlightthickness=0,
         )
         self.canvas.pack()
+        self.start_time = time.time()
+        self.overlay = self.canvas.create_rectangle(
+            0,
+            0,
+            WINDOW_WIDTH,
+            WINDOW_HEIGHT,
+            fill="#112244",
+            outline="",
+            state="hidden",
+        )
+        self.status_icon = self.canvas.create_text(
+            5,
+            5,
+            text="\u2600\ufe0f",
+            anchor="nw",
+            font=("Arial", 16),
+        )
+        self.canvas.tag_raise(self.overlay)
+        self.canvas.tag_raise(self.status_icon)
         self.sidebar_frame = tk.Frame(master, bg=PALETTE["frame"])
         self.sidebar_frame.pack(side="right", fill="y")
 
@@ -1298,6 +1318,48 @@ class AntSim:
         bx1, by1, bx2, by2 = self.get_coords(b)
         return ax1 < bx2 and ax2 > bx1 and ay1 < by2 and ay2 > by1
 
+    def _lerp(self, a: float, b: float, t: float) -> float:
+        return a + (b - a) * max(0.0, min(1.0, t))
+
+    def _brightness_at(self, t: float) -> float:
+        cycle = t % 60.0
+        phase = 30.0
+        trans = 3.0
+        if cycle < phase:
+            if cycle < trans:
+                return self._lerp(0.5, 1.0, cycle / trans)
+            if cycle > phase - trans:
+                return self._lerp(1.0, 0.5, (cycle - (phase - trans)) / trans)
+            return 1.0
+        cycle -= phase
+        if cycle < trans:
+            return self._lerp(1.0, 0.5, cycle / trans)
+        if cycle > phase - trans:
+            return self._lerp(0.5, 1.0, (cycle - (phase - trans)) / trans)
+        return 0.5
+
+    def _stipple_from_brightness(self, val: float) -> str:
+        alpha = (1.0 - val) / 0.5
+        if alpha > 0.75:
+            return "gray75"
+        if alpha > 0.5:
+            return "gray50"
+        if alpha > 0.25:
+            return "gray25"
+        return "gray12"
+
+    def update_lighting(self) -> None:
+        t = time.time() - self.start_time
+        val = self._brightness_at(t)
+        if val >= 0.99:
+            self.canvas.itemconfigure(self.overlay, state="hidden")
+        else:
+            self.canvas.itemconfigure(
+                self.overlay, state="normal", stipple=self._stipple_from_brightness(val)
+            )
+        icon = "\u2600\ufe0f" if val >= 0.75 else "\U0001F319"
+        self.canvas.itemconfigure(self.status_icon, text=icon)
+
     def get_stats(self) -> str:
         return (
             f"Food Collected: {self.food_collected}\n"
@@ -1359,6 +1421,7 @@ class AntSim:
         self.decay_pheromones()
 
         self.stats_label.configure(text=self.get_stats())
+        self.update_lighting()
         self.master.after(100, self.update)
 
 
