@@ -55,9 +55,6 @@ class FakeSim:
     def get_coords(self, item):
         return self.canvas.coords(item)
 
-    def get_coords(self, item):
-        return self.canvas.coords(item)
-
     def check_collision(self, a, b):
         ax1, ay1, ax2, ay2 = self.get_coords(a)
         bx1, by1, bx2, by2 = self.get_coords(b)
