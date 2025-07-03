@@ -114,8 +114,8 @@ def test_worker_feeds_queen():
     assert not worker.carrying_food
 
 def test_queen_spawns_new_worker():
-    sim = FakeSim()
-    # Add actual test logic here if needed
+    FakeSim()
+    # This placeholder test simply ensures construction succeeds
 
 @patch("ant_sim.openai.ChatCompletion.create")
 def test_ai_base_ant_moves_with_openai(mock_create):

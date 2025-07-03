@@ -2,9 +2,8 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-import random
 
-from ant_sim import ScoutAnt, BaseAnt, ANT_SIZE
+from ant_sim import Spider, BaseAnt, ANT_SIZE
 
 
 class FakeCanvas:
@@ -54,48 +53,34 @@ class FakeCanvas:
 class FakeSim:
     def __init__(self):
         self.canvas = FakeCanvas()
+        self.ants = []
+        self.predators = []
+
+    def get_coords(self, item):
+        return self.canvas.coords(item)
+
+    def check_collision(self, a, b):
+        ax1, ay1, ax2, ay2 = self.get_coords(a)
+        bx1, by1, bx2, by2 = self.get_coords(b)
+        return ax1 < bx2 and ax2 > bx1 and ay1 < by2 and ay2 > by1
 
 
-def test_scout_records_positions(monkeypatch):
+def test_spider_brain_moves_towards_ant():
     sim = FakeSim()
-    scout = ScoutAnt(sim, 0, 0)
-    assert (0.0, 0.0) in scout.visited
-
-    # choose first available unexplored move
-    monkeypatch.setattr(random, "choice", lambda opts: opts[0])
-    scout.update()
-
-    coords = sim.canvas.coords(scout.item)
-    assert (coords[0], coords[1]) in scout.visited
-    assert len(scout.visited) >= 2
+    spider = Spider(sim, 0, 0)
+    ant = BaseAnt(sim, 50, 0)
+    sim.ants.append(ant)
+    spider.brain_move()
+    coords = sim.canvas.coords(spider.item)
+    assert coords[0] > 0
 
 
-def test_scout_prioritizes_unexplored(monkeypatch):
+def test_spider_hunger_increases_after_three_ants():
     sim = FakeSim()
-    scout = ScoutAnt(sim, 0, 0)
-
-    recorded = {}
-
-    def fake_choice(options):
-        recorded['options'] = options
-        return options[0]
-
-    monkeypatch.setattr(random, "choice", fake_choice)
-
-    # prevent fallback to move_random
-    called = {"move_random": False}
-
-    def fake_move_random(self):
-        called["move_random"] = True
-
-    monkeypatch.setattr(BaseAnt, "move_random", fake_move_random)
-
-    scout.update()
-
-    # ensure move_random was not used
-    assert not called["move_random"]
-    assert recorded["options"]
-    # options should be list of tuples (dx, dy, x, y)
-    assert isinstance(recorded["options"][0], tuple)
-    coords = sim.canvas.coords(scout.item)
-    assert (coords[0], coords[1]) in scout.visited
+    spider = Spider(sim, 0, 0)
+    ants = [BaseAnt(sim, 0, 0) for _ in range(3)]
+    for ant in ants:
+        ant.energy = 0
+        sim.ants.append(ant)
+    spider.attack_ants()
+    assert spider.hunger == 1
