@@ -1,13 +1,13 @@
 import os, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from ant_sim import Queen, WorkerAnt
-
+from ant_sim import Queen, WorkerAnt, ANT_SIZE, FOOD_SIZE
 
 class FakeCanvas:
     def __init__(self):
         self.objects = {}
         self.next_id = 1
+        self.configured = {}
 
     def _create_item(self, coords):
         item_id = self.next_id
@@ -32,23 +32,17 @@ class FakeCanvas:
         return self.objects[item_id]
 
     def itemconfigure(self, item_id, **kwargs):
-        pass
-
+        self.configured[item_id] = kwargs
 
 class FakeSim:
     def __init__(self):
         self.canvas = FakeCanvas()
-        self.food = self.canvas.create_rectangle(0, 0, 8, 8, fill="green")
-        self.queen_fed = 0
-        self.food_collected = 0
+                self.food = self.canvas.create_rectangle(0, 0, FOOD_SIZE, FOOD_SIZE, fill="green")
         self.ants = []
-        # Place queen at origin for easier collision
+        self.food_collected = 0
+        self.queen_fed = 0
         self.queen = Queen(self, 0, 0)
 
-    def move_food(self):
-        pass
-
-    def get_coords(self, item):
         return self.canvas.coords(item)
 
     def check_collision(self, a, b):
@@ -65,7 +59,6 @@ def test_queen_feed_increases_hunger():
     sim.queen.feed(50)
     assert sim.queen.hunger == 100
 
-
 def test_worker_ant_feeding_queen():
     sim = FakeSim()
     worker = WorkerAnt(sim, 0, 0)
@@ -73,6 +66,32 @@ def test_worker_ant_feeding_queen():
     worker.carrying_food = True
     sim.queen.hunger = 40
     worker.update()
-    assert sim.queen_fed == 1
+    assert sim.queen.fed == 1
     assert not worker.carrying_food
     assert sim.queen.hunger > 40
+
+def test_queen_creation():
+    sim = FakeSim()
+    assert sim.queen.hunger == 100
+    assert sim.queen.spawn_timer == 300
+
+def test_worker_feeds_queen():
+    sim = FakeSim()
+    worker = WorkerAnt(sim, 0, 0)
+    worker.carrying_food = True
+    sim.ants.append(worker)
+    sim.queen.hunger = 50
+    worker.update()
+    assert sim.queen.hunger == 60
+    assert sim.queen.fed == 1
+    assert not worker.carrying_food
+
+def test_queen_spawns_new_worker():
+    sim = FakeSim()
+    sim.queen.spawn_timer = 0
+    initial_count = len(sim.ants)
+    sim.queen.update()
+    assert len(sim.ants) == initial_count + 1
+    assert sim.queen.spawn_timer == 300
+    assert sim.queen.hunger < 100
+
