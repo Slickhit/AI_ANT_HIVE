@@ -10,6 +10,11 @@ the number of active ants.
 ## Setup
 
 1. Install **Python 3.11** or newer.
+ codex/update-readme-on-environment-variables
+2. Install dependencies with `pip install -r requirements.txt`.
+3. Environment variables can be loaded from a `.env` file via `python-dotenv`, though none are required for basic usage.
+4. Start the GUI using `python ant_sim.py`.
+
 2. Install the required dependencies:
 
    ```bash
@@ -23,6 +28,7 @@ Start the GUI with:
 ```bash
 python ant_sim.py
 ```
+ main
 
 ## Development
 
