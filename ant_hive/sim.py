@@ -1,6 +1,8 @@
 import random
 import tkinter as tk
 from typing import List
+import time
+
 
 from .constants import WINDOW_WIDTH, WINDOW_HEIGHT, PALETTE, TILE_SIZE, PHEROMONE_DECAY
 from .terrain import Terrain, TILE_ROCK
