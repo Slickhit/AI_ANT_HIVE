@@ -38,3 +38,7 @@ python -m pytest
 
 main
 
+## License
+
+This project is licensed under the [MIT License](LICENSE).
+
