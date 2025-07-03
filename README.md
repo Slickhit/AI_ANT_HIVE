@@ -15,3 +15,7 @@ AI Ant Hive is a small Tkinter based simulation of an ant colony. Worker ants ga
 The project includes a small test suite located in the `tests` folder.
 Run it using `pytest` to ensure everything works as expected.
 
+## License
+
+AI Ant Hive is licensed under the [MIT License](LICENSE).
+
