@@ -84,7 +84,8 @@ class AntSim:
         self.ant_canvas.configure(yscrollcommand=self.ant_scroll.set)
         self.ant_scroll.pack(side="right", fill="y")
         self.ant_canvas.pack(side="left", fill="both", expand=True)
-               self.ant_window = self.ant_canvas.create_window(
+        self.ant_list = tk.Frame(self.ant_canvas, bg="#f9ebcc")
+        self.ant_window = self.ant_canvas.create_window(
             (0, 0), window=self.ant_list, anchor="nw"
         )
 
@@ -96,8 +97,6 @@ class AntSim:
         self.ant_canvas.bind(
             "<Configure>",
             lambda e: self.ant_canvas.itemconfigure(self.ant_window, width=e.width)
-        )
-
         )
         self.spawn_button.bind("<ButtonPress-1>", self.start_place_food)
         self.canvas.bind("<Button-1>", self.place_food)
@@ -135,7 +134,7 @@ class AntSim:
         self.ant_labels: dict[int, tk.Label] = {}
         self.update()
 
-       def refresh_ant_stats(self) -> None:
+    def refresh_ant_stats(self) -> None:
         active_ids = set()
         for ant in self.ants:
             active_ids.add(ant.ant_id)
