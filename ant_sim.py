@@ -89,7 +89,7 @@ class BaseAnt:
             x, y, x + ANT_SIZE, y + ANT_SIZE, fill=color
         )
         self.carrying_food: bool = False
-              self.energy: float = ENERGY_MAX
+        self.energy: float = ENERGY_MAX
         self.status: str = "Active"
         self.role: str = self.__class__.__name__
         self.ant_id: int = self.item
@@ -142,7 +142,6 @@ class BaseAnt:
 
 
     def update(self) -> None:
-        if self.energy <= 0:
         if self.energy <= 0:
             self.status = "Tired"
             self.energy = max(0, self.energy - 0.1)
@@ -255,7 +254,6 @@ class WorkerAnt(BaseAnt):
         self.last_pos = (coords[0], coords[1])
 
 
-class ScoutAnt(BaseAnt):
 class ScoutAnt(BaseAnt):
     """Ant that explores randomly, remembering visited positions."""
 
