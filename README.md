@@ -22,6 +22,14 @@ Start the GUI with:
 python ant_sim.py
 ```
 
+### Controls
+
+The sidebar on the right lists each ant's status and overall colony metrics.
+At the top of the sidebar you'll find a **Food Drop** button. Clicking it lets
+you place additional food sources in the simulation. Just below the button a
+small statistics label continuously updates with collected food, queen hunger
+and the number of active ants.
+
 ## Development
 
 The `tests` folder contains a small test suite. Run it with:

@@ -953,21 +953,34 @@ class AntSim:
             highlightthickness=0,
         )
         self.canvas.pack()
-        self.sidebar = tk.Text(master, width=30, bg=PALETTE["sidebar"], font=MONO_FONT)
-        self.sidebar.pack(side="right", fill="y")
-        self.sidebar.tag_configure("header", font=HEADER_FONT)
-        self.sidebar.tag_configure("normal", font=MONO_FONT)
-        self.sidebar.configure(state="disabled")
+        self.sidebar_frame = tk.Frame(master, bg=PALETTE["frame"])
+        self.sidebar_frame.pack(side="right", fill="y")
+
         self.food_icon = create_glowing_icon(20)
         # Icon used when rendering ant stats in the sidebar
         self.ant_icon = create_glowing_icon(ANT_SIZE)
-        self.spawn_button = tk.Button(
-            master, image=self.food_icon, text="Food Drop", compound="top", borderwidth=0
-        )
 
+        self.spawn_button = tk.Button(
+            self.sidebar_frame,
+            image=self.food_icon,
+            text="Food Drop",
+            compound="top",
+            borderwidth=0,
+        )
         self.spawn_button.pack(side="top")
-        self.stats_label = tk.Label(master, bg=PALETTE["frame"], font=("Arial", 10))
+
+        self.stats_label = tk.Label(
+            self.sidebar_frame, bg=PALETTE["frame"], font=("Arial", 10)
+        )
         self.stats_label.pack(side="top")
+
+        self.sidebar = tk.Text(
+            self.sidebar_frame, width=30, bg=PALETTE["sidebar"], font=MONO_FONT
+        )
+        self.sidebar.pack(side="top", fill="both", expand=True)
+        self.sidebar.tag_configure("header", font=HEADER_FONT)
+        self.sidebar.tag_configure("normal", font=MONO_FONT)
+        self.sidebar.configure(state="disabled")
         self.spawn_button.bind("<ButtonPress-1>", self.start_place_food)
         self.canvas.bind("<Button-1>", self.place_food)
         self.placing_food = False
