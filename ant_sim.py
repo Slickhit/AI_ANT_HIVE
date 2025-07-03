@@ -26,14 +26,19 @@ class BaseAnt:
     def move_random(self) -> None:
         dx = random.choice([-MOVE_STEP, 0, MOVE_STEP])
         dy = random.choice([-MOVE_STEP, 0, MOVE_STEP])
-        self.sim.canvas.move(self.item, dx, dy)
+        x1, y1, _, _ = self.sim.canvas.coords(self.item)
+        new_x1 = max(0, min(WINDOW_WIDTH - ANT_SIZE, x1 + dx))
+        new_y1 = max(0, min(WINDOW_HEIGHT - ANT_SIZE, y1 + dy))
+        self.sim.canvas.move(self.item, new_x1 - x1, new_y1 - y1)
 
     def move_towards(self, target: int) -> None:
         x1, y1, _, _ = self.sim.canvas.coords(self.item)
         tx1, ty1, _, _ = self.sim.canvas.coords(target)
         dx = MOVE_STEP if x1 < tx1 else -MOVE_STEP if x1 > tx1 else 0
         dy = MOVE_STEP if y1 < ty1 else -MOVE_STEP if y1 > ty1 else 0
-        self.sim.canvas.move(self.item, dx, dy)
+        new_x1 = max(0, min(WINDOW_WIDTH - ANT_SIZE, x1 + dx))
+        new_y1 = max(0, min(WINDOW_HEIGHT - ANT_SIZE, y1 + dy))
+        self.sim.canvas.move(self.item, new_x1 - x1, new_y1 - y1)
 
     def update(self) -> None:
         self.move_random()
