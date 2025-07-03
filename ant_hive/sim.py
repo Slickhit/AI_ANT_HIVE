@@ -84,19 +84,20 @@ class AntSim:
         self.ant_canvas.configure(yscrollcommand=self.ant_scroll.set)
         self.ant_scroll.pack(side="right", fill="y")
         self.ant_canvas.pack(side="left", fill="both", expand=True)
-        self.ant_list = tk.Frame(self.ant_canvas, bg="#f9ebcc")
-        self.ant_window = self.ant_canvas.create_window(
+               self.ant_window = self.ant_canvas.create_window(
             (0, 0), window=self.ant_list, anchor="nw"
         )
+
         self.ant_list.bind(
             "<Configure>",
-            lambda e: self.ant_canvas.configure(
-                scrollregion=self.ant_canvas.bbox("all")
-            ),
+            lambda e: self.ant_canvas.configure(scrollregion=self.ant_canvas.bbox("all"))
         )
+
         self.ant_canvas.bind(
             "<Configure>",
-            lambda e: self.ant_canvas.itemconfigure(self.ant_window, width=e.width),
+            lambda e: self.ant_canvas.itemconfigure(self.ant_window, width=e.width)
+        )
+
         )
         self.spawn_button.bind("<ButtonPress-1>", self.start_place_food)
         self.canvas.bind("<Button-1>", self.place_food)
@@ -134,18 +135,18 @@ class AntSim:
         self.ant_labels: dict[int, tk.Label] = {}
         self.update()
 
-    def refresh_ant_stats(self) -> None:
+       def refresh_ant_stats(self) -> None:
         active_ids = set()
         for ant in self.ants:
             active_ids.add(ant.ant_id)
-            text = f"\u25a0 ID {ant.ant_id:04d} | {ant.role} | E:{int(ant.energy)} | {ant.status}"
+            text = f"\u25A0 ID {ant.ant_id:04d} | {ant.role} | E:{int(ant.energy)} | {ant.status}"
             label = self.ant_labels.get(ant.ant_id)
             if label is None:
                 label = tk.Label(
                     self.ant_list,
                     text=text,
                     anchor="w",
-                    bg="#f9ebcc",
+                    bg="#fbe0cc",
                     fg=getattr(ant, "color", "black"),
                     font=("Arial", 9),
                 )
@@ -158,6 +159,7 @@ class AntSim:
             if ant_id not in active_ids:
                 self.ant_labels[ant_id].destroy()
                 del self.ant_labels[ant_id]
+
 
     def start_place_food(self, _event) -> None:
         self.placing_food = True
