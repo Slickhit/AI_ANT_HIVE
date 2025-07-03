@@ -974,13 +974,29 @@ class AntSim:
         )
         self.stats_label.pack(side="top")
 
-        self.sidebar = tk.Text(
-            self.sidebar_frame, width=30, bg=PALETTE["sidebar"], font=MONO_FONT
+        self.ant_panel = tk.Text(
+            self.sidebar_frame,
+            width=30,
+            height=10,
+            bg=PALETTE["sidebar"],
+            font=MONO_FONT,
         )
-        self.sidebar.pack(side="top", fill="both", expand=True)
-        self.sidebar.tag_configure("header", font=HEADER_FONT)
-        self.sidebar.tag_configure("normal", font=MONO_FONT)
-        self.sidebar.configure(state="disabled")
+        self.ant_panel.pack(side="top", fill="both", expand=True)
+        self.ant_panel.tag_configure("header", font=HEADER_FONT)
+        self.ant_panel.tag_configure("normal", font=MONO_FONT)
+        self.ant_panel.configure(state="disabled")
+
+        self.colony_panel = tk.Text(
+            self.sidebar_frame,
+            width=30,
+            height=6,
+            bg=PALETTE["sidebar"],
+            font=MONO_FONT,
+        )
+        self.colony_panel.pack(side="top", fill="both", expand=True)
+        self.colony_panel.tag_configure("header", font=HEADER_FONT)
+        self.colony_panel.tag_configure("normal", font=MONO_FONT)
+        self.colony_panel.configure(state="disabled")
         self.spawn_button.bind("<ButtonPress-1>", self.start_place_food)
         self.canvas.bind("<Button-1>", self.place_food)
         self.placing_food = False
@@ -1139,22 +1155,26 @@ class AntSim:
             f"Ants: {len(self.ants)}\n"
             f"Eggs: {len(self.eggs)}"
         )
-        self.sidebar.configure(state="normal")
-        self.sidebar.delete("1.0", tk.END)
-        self.sidebar.insert(tk.END, "Ant Stats:\n", "header")
+        self.ant_panel.configure(state="normal")
+        self.ant_panel.delete("1.0", tk.END)
+        self.ant_panel.insert(tk.END, "Ant Stats:\n", "header")
         for line in lines:
-            self.sidebar.image_create(tk.END, image=self.ant_icon)
-            self.sidebar.insert(tk.END, " " + line + "\n", "normal")
-        self.sidebar.insert(tk.END, "\nColony Stats:\n", "header")
-        self.sidebar.insert(tk.END, metrics, "normal")
+            self.ant_panel.image_create(tk.END, image=self.ant_icon)
+            self.ant_panel.insert(tk.END, " " + line + "\n", "normal")
+        self.ant_panel.configure(state="disabled")
+
+        self.colony_panel.configure(state="normal")
+        self.colony_panel.delete("1.0", tk.END)
+        self.colony_panel.insert(tk.END, "Colony Stats:\n", "header")
+        self.colony_panel.insert(tk.END, metrics, "normal")
         all_entities = [self.queen] + self.ants
         sel = all_entities[self.selected_index]
         if sel is self.queen:
             thought = self.queen.thought()
-            self.sidebar.insert(tk.END, f"\nQueen Thought: {thought}", "normal")
+            self.colony_panel.insert(tk.END, f"\nQueen Thought: {thought}", "normal")
         else:
-            self.sidebar.insert(tk.END, f"\nSelected: {sel.role}", "normal")
-        self.sidebar.configure(state="disabled")
+            self.colony_panel.insert(tk.END, f"\nSelected: {sel.role}", "normal")
+        self.colony_panel.configure(state="disabled")
         self.master.after(1000, self.update_sidebar)
 
     def update(self) -> None:
