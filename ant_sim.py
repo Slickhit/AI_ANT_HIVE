@@ -1014,6 +1014,10 @@ class AntSim:
         self.pheromones: list[list[float]] = [
             [0.0 for _ in range(self.grid_height)] for _ in range(self.grid_width)
         ]
+        # Canvas items for visualizing pheromones
+        self.pheromone_items: list[list[int | None]] = [
+            [None for _ in range(self.grid_height)] for _ in range(self.grid_width)
+        ]
 
         # Terrain
         self.terrain = Terrain(self.grid_width, self.grid_height, self.canvas)
@@ -1109,11 +1113,45 @@ class AntSim:
             self.canvas.delete(self.selection_tooltip)
             self.selection_tooltip = None
 
+    def _update_pheromone_visual(self, gx: int, gy: int) -> None:
+        """Render a rectangle representing pheromone strength."""
+        val = self.pheromones[gx][gy]
+        item = self.pheromone_items[gx][gy]
+        if val <= 0:
+            if item:
+                if hasattr(self.canvas, "delete"):
+                    self.canvas.delete(item)
+                self.pheromone_items[gx][gy] = None
+            return
+        intensity = max(0, min(255, int(255 * min(1.0, val))))
+        color = f"#0000{intensity:02x}"
+        if item:
+            if hasattr(self.canvas, "itemconfigure"):
+                self.canvas.itemconfigure(item, fill=color)
+        else:
+            x1 = gx * TILE_SIZE + TILE_SIZE / 4
+            y1 = gy * TILE_SIZE + TILE_SIZE / 4
+            x2 = x1 + TILE_SIZE / 2
+            y2 = y1 + TILE_SIZE / 2
+            if hasattr(self.canvas, "create_rectangle"):
+                item = self.canvas.create_rectangle(
+                    x1,
+                    y1,
+                    x2,
+                    y2,
+                    fill=color,
+                    outline="",
+                )
+                self.pheromone_items[gx][gy] = item
+                if hasattr(self.canvas, "tag_lower"):
+                    self.canvas.tag_lower(item)
+
     def deposit_pheromone(self, x: float, y: float, amount: float) -> None:
         gx = int(x) // TILE_SIZE
         gy = int(y) // TILE_SIZE
         if 0 <= gx < self.grid_width and 0 <= gy < self.grid_height:
             self.pheromones[gx][gy] += amount
+            self._update_pheromone_visual(gx, gy)
 
     def get_pheromone(self, x: float, y: float) -> float:
         gx = int(x) // TILE_SIZE
@@ -1127,6 +1165,7 @@ class AntSim:
             for y in range(self.grid_height):
                 if self.pheromones[x][y] > 0:
                     self.pheromones[x][y] = max(0.0, self.pheromones[x][y] - PHEROMONE_DECAY)
+                    self._update_pheromone_visual(x, y)
 
     def get_coords(self, item: int) -> List[float]:
         return self.canvas.coords(item)
