@@ -24,19 +24,43 @@ class AntSim:
         self.master = master
         self.frame = tk.Frame(master, bg=PALETTE["frame"])
         self.frame.pack(side="left", padx=5, pady=5)
-        self.canvas = tk.Canvas(self.frame, width=WINDOW_WIDTH, height=WINDOW_HEIGHT, bg=PALETTE["background"], highlightthickness=0)
+        self.canvas = tk.Canvas(
+            self.frame,
+            width=WINDOW_WIDTH,
+            height=WINDOW_HEIGHT,
+            bg=PALETTE["background"],
+            highlightthickness=0,
+        )
         self.canvas.pack()
         self.start_time = time.time()
-        self.overlay = self.canvas.create_rectangle(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, fill="#112244", outline="", state="hidden")
-        self.status_icon = self.canvas.create_text(5, 5, text="\u2600\ufe0f", anchor="nw", font=("Arial", 16))
+        self.overlay = self.canvas.create_rectangle(
+            0,
+            0,
+            WINDOW_WIDTH,
+            WINDOW_HEIGHT,
+            fill="#112244",
+            outline="",
+            state="hidden",
+        )
+        self.status_icon = self.canvas.create_text(
+            5, 5, text="\u2600\ufe0f", anchor="nw", font=("Arial", 16)
+        )
         self.canvas.tag_raise(self.overlay)
         self.canvas.tag_raise(self.status_icon)
         self.sidebar_frame = tk.Frame(master, bg=PALETTE["frame"])
         self.sidebar_frame.pack(side="right", fill="y")
         self.food_icon = create_glowing_icon(20)
-        self.spawn_button = tk.Button(self.sidebar_frame, image=self.food_icon, text="Food Drop", compound="top", borderwidth=0)
+        self.spawn_button = tk.Button(
+            self.sidebar_frame,
+            image=self.food_icon,
+            text="Food Drop",
+            compound="top",
+            borderwidth=0,
+        )
         self.spawn_button.pack(side="top")
-        self.stats_label = tk.Label(self.sidebar_frame, bg=PALETTE["frame"], font=("Arial", 10))
+        self.stats_label = tk.Label(
+            self.sidebar_frame, bg=PALETTE["frame"], font=("Arial", 10)
+        )
         self.stats_label.pack(side="top")
 
         # Panel for individual ant statistics
@@ -61,10 +85,18 @@ class AntSim:
         self.ant_scroll.pack(side="right", fill="y")
         self.ant_canvas.pack(side="left", fill="both", expand=True)
         self.ant_list = tk.Frame(self.ant_canvas, bg="#f9ebcc")
-        self.ant_canvas.create_window((0, 0), window=self.ant_list, anchor="nw")
+        self.ant_window = self.ant_canvas.create_window(
+            (0, 0), window=self.ant_list, anchor="nw"
+        )
         self.ant_list.bind(
             "<Configure>",
-            lambda e: self.ant_canvas.configure(scrollregion=self.ant_canvas.bbox("all")),
+            lambda e: self.ant_canvas.configure(
+                scrollregion=self.ant_canvas.bbox("all")
+            ),
+        )
+        self.ant_canvas.bind(
+            "<Configure>",
+            lambda e: self.ant_canvas.itemconfigure(self.ant_window, width=e.width),
         )
         self.spawn_button.bind("<ButtonPress-1>", self.start_place_food)
         self.canvas.bind("<Button-1>", self.place_food)
@@ -74,14 +106,20 @@ class AntSim:
         self.predators: List[Spider] = []
         self.grid_width = WINDOW_WIDTH // TILE_SIZE
         self.grid_height = WINDOW_HEIGHT // TILE_SIZE
-        self.pheromones: list[list[float]] = [[0.0 for _ in range(self.grid_height)] for _ in range(self.grid_width)]
-        self.pheromone_items: list[list[int | None]] = [[None for _ in range(self.grid_height)] for _ in range(self.grid_width)]
+        self.pheromones: list[list[float]] = [
+            [0.0 for _ in range(self.grid_height)] for _ in range(self.grid_width)
+        ]
+        self.pheromone_items: list[list[int | None]] = [
+            [None for _ in range(self.grid_height)] for _ in range(self.grid_width)
+        ]
         self.terrain = Terrain(self.grid_width, self.grid_height, self.canvas)
         for _ in range(30):
             rx = random.randint(0, self.terrain.width - 1)
             ry = random.randint(self.terrain.height // 2, self.terrain.height - 1)
             self.terrain.set_cell(rx, ry, TILE_ROCK)
-        self.food: int = self.canvas.create_rectangle(180, 20, 180 + 8, 20 + 8, fill="green")
+        self.food: int = self.canvas.create_rectangle(
+            180, 20, 180 + 8, 20 + 8, fill="green"
+        )
         self.queen: Queen = Queen(self, 180, 570)
         self.ants: List[BaseAnt] = [
             WorkerAnt(self, 195, 295, "blue"),
@@ -93,21 +131,33 @@ class AntSim:
         self.predators.append(Spider(self, 50, 50))
         self.food_collected: int = 0
         self.queen_fed: int = 0
+        self.ant_labels: dict[int, tk.Label] = {}
         self.update()
 
     def refresh_ant_stats(self) -> None:
-        for w in self.ant_list.winfo_children():
-            w.destroy()
+        active_ids = set()
         for ant in self.ants:
-            text = f"\u25A0 ID {ant.ant_id:04d} | {ant.role} | E:{int(ant.energy)} | {ant.status}"
-            tk.Label(
-                self.ant_list,
-                text=text,
-                anchor="w",
-                bg="#f9ebcc",
-                fg=getattr(ant, "color", "black"),
-                font=("Arial", 9),
-            ).pack(fill="x")
+            active_ids.add(ant.ant_id)
+            text = f"\u25a0 ID {ant.ant_id:04d} | {ant.role} | E:{int(ant.energy)} | {ant.status}"
+            label = self.ant_labels.get(ant.ant_id)
+            if label is None:
+                label = tk.Label(
+                    self.ant_list,
+                    text=text,
+                    anchor="w",
+                    bg="#f9ebcc",
+                    fg=getattr(ant, "color", "black"),
+                    font=("Arial", 9),
+                )
+                label.pack(fill="x")
+                self.ant_labels[ant.ant_id] = label
+            else:
+                label.configure(text=text, fg=getattr(ant, "color", "black"))
+
+        for ant_id in list(self.ant_labels.keys()):
+            if ant_id not in active_ids:
+                self.ant_labels[ant_id].destroy()
+                del self.ant_labels[ant_id]
 
     def start_place_food(self, _event) -> None:
         self.placing_food = True
@@ -135,7 +185,9 @@ class AntSim:
         for x in range(self.grid_width):
             for y in range(self.grid_height):
                 if self.pheromones[x][y] > 0:
-                    self.pheromones[x][y] = max(0.0, self.pheromones[x][y] - PHEROMONE_DECAY)
+                    self.pheromones[x][y] = max(
+                        0.0, self.pheromones[x][y] - PHEROMONE_DECAY
+                    )
 
     def get_coords(self, item: int) -> list[float]:
         return self.canvas.coords(item)
