@@ -9,7 +9,6 @@ from ant_sim import (
     MOVE_ENERGY_COST,
     DIG_ENERGY_COST,
     REST_ENERGY_GAIN,
-    ENERGY_MAX,
     ANT_SIZE,
 )
 

@@ -13,7 +13,6 @@ from ant_sim import (
     Terrain,
     TILE_SIZE,
     TILE_TUNNEL,
-    TILE_SAND,
 )
 
 
