@@ -48,3 +48,7 @@ main
 
 This project is licensed under the [MIT License](LICENSE).
 
+## License
+
+AI Ant Hive is licensed under the [MIT License](LICENSE).
+
