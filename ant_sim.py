@@ -529,6 +529,9 @@ class WorkerAnt(BaseAnt):
             self.last_pos = (coords[0], coords[1])
             return
         start = self.sim.canvas.coords(self.item)
+        # Initialize to avoid UnboundLocalError when carrying food
+        best_dir = None
+        best_value = -1.0
         if not self.carrying_food:
             # Check for food drops first
             for drop in getattr(self.sim, "food_drops", []):
@@ -547,8 +550,6 @@ class WorkerAnt(BaseAnt):
             else:
                 # Follow pheromones if present, otherwise head toward food
                 x1, y1, _, _ = self.sim.canvas.coords(self.item)
-                best_dir = None
-                best_value = -1.0
                 for dx in (-TILE_SIZE, 0, TILE_SIZE):
                     for dy in (-TILE_SIZE, 0, TILE_SIZE):
                         if dx == 0 and dy == 0:
