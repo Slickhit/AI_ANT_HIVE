@@ -47,6 +47,30 @@ MOVE_STEP = 5
 PHEROMONE_DECAY = 0.01
 SCOUT_PHEROMONE_AMOUNT = 1.0
 
+# Animated sprite frames for ants. We avoid external binaries by generating
+# simple images programmatically. When Tk isn't available (e.g. during tests)
+# creation will fail and we fall back to `None` frames.
+def _load_sprites() -> list[tk.PhotoImage | None]:
+    try:
+        frames: list[tk.PhotoImage] = []
+        for i in range(2):
+            img = tk.PhotoImage(width=ANT_SIZE, height=ANT_SIZE)
+            body_color = "brown"
+            for x in range(ANT_SIZE):
+                for y in range(ANT_SIZE):
+                    if 2 <= x < ANT_SIZE - 2 and 2 <= y < ANT_SIZE - 2:
+                        img.put(body_color, (x, y))
+            leg_y = ANT_SIZE - 2 + (0 if i == 0 else -1)
+            img.put("black", (1, leg_y))
+            img.put("black", (ANT_SIZE - 2, leg_y))
+            frames.append(img)
+        return frames
+    except Exception:
+        # During headless testing Tk may not be initialized.
+        return [None, None]
+
+ANT_SPRITES = _load_sprites()
+
 
 # Utility to create a small glowing orb sprite
 def create_glowing_icon(size: int = 16, inner: str = "#ffff99", outer: str = "#ff9900") -> tk.PhotoImage:
@@ -290,23 +314,39 @@ class BaseAnt:
         self, sim: "AntSim", x: int, y: int, color: str = "black", energy: int = 100
     ) -> None:
         self.sim = sim
-        self.item: int = sim.canvas.create_oval(
-            x, y, x + ANT_SIZE, y + ANT_SIZE, fill=color
+        self.color = color
+        self.item: int = sim.canvas.create_rectangle(
+            x,
+            y,
+            x + ANT_SIZE,
+            y + ANT_SIZE,
+            outline="",
+            fill="",
         )
+        self.image_id = sim.canvas.create_image(
+            x,
+            y,
+            image=ANT_SPRITES[0],
+            anchor="nw",
+        )
+        self.sprite_frames = ANT_SPRITES
+        self.frame_index = 0
+
         self.energy_bar_bg = sim.canvas.create_rectangle(
             x,
-            y - 4,
+            y + 4,
             x + ANT_SIZE,
-            y - 2,
+            y + 2,
             fill=PALETTE["bar_bg"],
         )
         self.energy_bar = sim.canvas.create_rectangle(
             x,
-            y - 4,
+            y + 4,
             x + ANT_SIZE,
-            y - 2,
+            y + 2,
             fill=PALETTE["bar_green"],
         )
+
         self.carrying_food: bool = False
         self.energy: float = min(ENERGY_MAX, energy)
         self.status: str = "Active"
@@ -337,7 +377,10 @@ class BaseAnt:
         if self.energy < cost:
             return
         self.energy -= cost
-        self.sim.canvas.move(self.item, new_x1 - x1, new_y1 - y1)
+        dx_move = new_x1 - x1
+        dy_move = new_y1 - y1
+        self.sim.canvas.move(self.item, dx_move, dy_move)
+        self.sim.canvas.move(self.image_id, dx_move, dy_move)
 
     def move_random(self) -> None:
         dx = random.choice([-MOVE_STEP, 0, MOVE_STEP])
@@ -392,6 +435,8 @@ class BaseAnt:
         self.move_random()
         coords = self.sim.canvas.coords(self.item)
         self.last_pos = (coords[0], coords[1])
+        self.frame_index = (self.frame_index + 1) % len(self.sprite_frames)
+        self.sim.canvas.itemconfigure(self.image_id, image=self.sprite_frames[self.frame_index])
 
 
 class AIBaseAnt(BaseAnt):
@@ -460,6 +505,7 @@ class WorkerAnt(BaseAnt):
             coords = self.sim.canvas.coords(self.item)
             self.last_pos = (coords[0], coords[1])
             return
+        start = self.sim.canvas.coords(self.item)
         if not self.carrying_food:
             # Check for food drops first
             for drop in getattr(self.sim, "food_drops", []):
@@ -467,6 +513,9 @@ class WorkerAnt(BaseAnt):
                     if drop.take_charge():
                         self.energy = min(ENERGY_MAX, self.energy + 20)
                         self.carrying_food = True
+                        cx = start[0] + ANT_SIZE / 2
+                        cy = start[1] + ANT_SIZE / 2
+                        self.sim.sparkle(cx, cy)
                     if drop.charges <= 0:
                         self.sim.food_drops.remove(drop)
                     break
@@ -490,12 +539,16 @@ class WorkerAnt(BaseAnt):
 
             if best_value > 0 and best_dir is not None:
                 self.sim.canvas.move(self.item, best_dir[0], best_dir[1])
+                self.sim.canvas.move(self.image_id, best_dir[0], best_dir[1])
             else:
                 self.move_towards(self.sim.food)
             if self.sim.check_collision(self.item, self.sim.food):
                 self.carrying_food = True
                 self.sim.food_collected += 1
                 self.sim.move_food()
+                cx = start[0] + ANT_SIZE / 2
+                cy = start[1] + ANT_SIZE / 2
+                self.sim.sparkle(cx, cy)
         else:
             self.move_towards(self.sim.queen.item)
             if self.sim.check_collision(self.item, self.sim.queen.item):
@@ -503,7 +556,18 @@ class WorkerAnt(BaseAnt):
                 self.sim.queen.fed += 1
                 self.sim.queen_fed += 1
                 self.carrying_food = False
+                coords = self.sim.canvas.coords(self.item)
+                cx = coords[0] + ANT_SIZE / 2
+                cy = coords[1] + ANT_SIZE / 2
+                self.sim.sparkle(cx, cy)
         coords = self.sim.canvas.coords(self.item)
+        if coords[:2] != start[:2]:
+            x1 = start[0] + ANT_SIZE / 2
+            y1 = start[1] + ANT_SIZE / 2
+            x2 = coords[0] + ANT_SIZE / 2
+            y2 = coords[1] + ANT_SIZE / 2
+            trail = self.sim.canvas.create_line(x1, y1, x2, y2, fill=self.color)
+            self.sim.canvas.after(300, lambda t=trail: self.sim.canvas.delete(t))
         self.last_pos = (coords[0], coords[1])
 
 
@@ -880,6 +944,10 @@ class AntSim:
 
     def move_food(self) -> None:
         self.canvas.move(self.food, random.randint(-50, 50), random.randint(20, 40))
+
+    def sparkle(self, x: float, y: float) -> None:
+        flash = self.canvas.create_oval(x - 3, y - 3, x + 3, y + 3, fill="yellow", outline="")
+        self.canvas.after(200, lambda: self.canvas.delete(flash))
 
     def start_place_food(self, _event) -> None:
         self.placing_food = True
