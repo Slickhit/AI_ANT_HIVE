@@ -8,7 +8,8 @@ AI Ant Hive is a small Tkinter based simulation of an ant colony. Worker ants ga
 
 1. Install **Python 3.11** or newer.
 2. Install dependencies with `pip install -r requirements.txt`.
-3. Start the GUI using `python ant_sim.py`.
+3. Environment variables can be loaded from a `.env` file via `python-dotenv`, though none are required for basic usage.
+4. Start the GUI using `python ant_sim.py`.
 
 ## Development
 
