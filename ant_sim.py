@@ -77,6 +77,29 @@ MOVE_ENERGY_COST = 1
 DIG_ENERGY_COST = 2
 REST_ENERGY_GAIN = 5
 
+
+class FoodDrop:
+    """Limited food source that disappears after its charges are used."""
+
+    def __init__(self, sim: "AntSim", x: int, y: int, charges: int = 5) -> None:
+        self.sim = sim
+        self.charges = charges
+        self.item = sim.canvas.create_rectangle(
+            x,
+            y,
+            x + FOOD_SIZE,
+            y + FOOD_SIZE,
+            fill="orange",
+        )
+
+    def take_charge(self) -> bool:
+        if self.charges <= 0:
+            return False
+        self.charges -= 1
+        if self.charges <= 0:
+            self.sim.canvas.delete(self.item)
+        return True
+
 class BaseAnt:
     """Base class for all ants."""
 
@@ -220,20 +243,32 @@ class WorkerAnt(BaseAnt):
             self.last_pos = (coords[0], coords[1])
             return
         if not self.carrying_food:
-            # Follow pheromones if present, otherwise head toward food
-            x1, y1, _, _ = self.sim.canvas.coords(self.item)
-            best_dir = None
-            best_value = -1.0
-            for dx in (-TILE_SIZE, 0, TILE_SIZE):
-                for dy in (-TILE_SIZE, 0, TILE_SIZE):
-                    if dx == 0 and dy == 0:
-                        continue
-                    nx = max(0, min(WINDOW_WIDTH - ANT_SIZE, x1 + dx))
-                    ny = max(0, min(WINDOW_HEIGHT - ANT_SIZE, y1 + dy))
-                    val = self.sim.get_pheromone(nx, ny)
-                    if val > best_value:
-                        best_value = val
-                        best_dir = (nx - x1, ny - y1)
+            # Check for food drops first
+            for drop in getattr(self.sim, "food_drops", []):
+                if self.sim.check_collision(self.item, drop.item):
+                    if drop.take_charge():
+                        self.energy = min(ENERGY_MAX, self.energy + 20)
+                        self.carrying_food = True
+                    if drop.charges <= 0:
+                        self.sim.food_drops.remove(drop)
+                    break
+            if self.carrying_food:
+                pass
+            else:
+                # Follow pheromones if present, otherwise head toward food
+                x1, y1, _, _ = self.sim.canvas.coords(self.item)
+                best_dir = None
+                best_value = -1.0
+                for dx in (-TILE_SIZE, 0, TILE_SIZE):
+                    for dy in (-TILE_SIZE, 0, TILE_SIZE):
+                        if dx == 0 and dy == 0:
+                            continue
+                        nx = max(0, min(WINDOW_WIDTH - ANT_SIZE, x1 + dx))
+                        ny = max(0, min(WINDOW_HEIGHT - ANT_SIZE, y1 + dy))
+                        val = self.sim.get_pheromone(nx, ny)
+                        if val > best_value:
+                            best_value = val
+                            best_dir = (nx - x1, ny - y1)
 
             if best_value > 0 and best_dir is not None:
                 self.sim.canvas.move(self.item, best_dir[0], best_dir[1])
@@ -336,10 +371,45 @@ class Queen:
         self.mad: bool = False
         self.ant_positions: dict[int, tuple[float, float]] = {}
         self.fed: int = 0
+        self.move_counter: int = 0
 
     def feed(self, amount: float = 10) -> None:
         """Increase the queen's hunger level when fed."""
         self.hunger = min(100, self.hunger + amount)
+
+    def thought(self) -> str:
+        """Return the queen's current thought or mood."""
+        key = os.getenv("OPENAI_API_KEY")
+        default = [
+            "I demand more food.",
+            "Where are my loyal workers?",
+            "This colony better prosper.",
+            "Another day of ruling...",
+            "Perhaps a nap soon.",
+        ]
+        prompt = {
+            "hunger": int(self.hunger),
+            "fed": self.fed,
+            "food": self.sim.food_collected,
+        }
+        if not key:
+            return random.choice(default)
+        openai.api_key = key
+        try:
+            resp = openai.ChatCompletion.create(
+                model=self.model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are a snarky ant queen. Reply with a single short thought about your state.",
+                    },
+                    {"role": "user", "content": json.dumps(prompt)},
+                ],
+                max_tokens=20,
+            )
+            return resp.choices[0].message["content"].strip()
+        except Exception:
+            return random.choice(default)
 
     def decide_spawn(self) -> bool:
         key = os.getenv("OPENAI_API_KEY")
@@ -394,6 +464,14 @@ class Queen:
         """Handle hunger and periodically spawn new worker ants."""
         self.hunger -= 0.1
         self.spawn_timer -= 1
+        self.move_counter += 1
+        if self.move_counter % 20 == 0:
+            dx = random.choice([-1, 0, 1])
+            dy = random.choice([-1, 0, 1])
+            x1, y1, _, _ = self.sim.canvas.coords(self.item)
+            new_x1 = max(0, min(WINDOW_WIDTH - 40, x1 + dx))
+            new_y1 = max(0, min(WINDOW_HEIGHT - 20, y1 + dy))
+            self.sim.canvas.move(self.item, new_x1 - x1, new_y1 - y1)
 
         if self.hunger < 50:
             self.sim.canvas.itemconfigure(self.item, fill="red")
@@ -424,6 +502,15 @@ class AntSim:
         self.sidebar = tk.Text(master, width=30)
         self.sidebar.pack(side="right", fill="y")
         self.sidebar.configure(state="disabled")
+        self.spawn_button = tk.Button(master, text="Food Drop")
+        self.spawn_button.pack(side="top")
+        self.spawn_button.bind("<ButtonPress-1>", self.start_place_food)
+        self.canvas.bind("<Button-1>", self.place_food)
+        self.placing_food = False
+
+        self.food_drops: List[FoodDrop] = []
+        self.selected_index = 0
+        self.master.bind("<Tab>", self.cycle_selection)
 
         # Pheromone grid
         self.grid_width = WINDOW_WIDTH // TILE_SIZE
@@ -477,6 +564,25 @@ class AntSim:
     def move_food(self) -> None:
         self.canvas.move(self.food, random.randint(-50, 50), random.randint(20, 40))
 
+    def start_place_food(self, _event) -> None:
+        self.placing_food = True
+
+    def place_food(self, event) -> None:
+        if not self.placing_food:
+            return
+        self.food_drops.append(FoodDrop(self, event.x, event.y))
+        self.placing_food = False
+
+    def cycle_selection(self, _event) -> None:
+        all_entities = [self.queen] + self.ants
+        self.selected_index = (self.selected_index + 1) % len(all_entities)
+        sel = all_entities[self.selected_index]
+        if sel is self.queen:
+            thought = self.queen.thought()
+            self.master.title(f"Queen: {thought}")
+        else:
+            self.master.title(f"Selected: {sel.role}")
+
     def deposit_pheromone(self, x: float, y: float, amount: float) -> None:
         gx = int(x) // TILE_SIZE
         gy = int(y) // TILE_SIZE
@@ -527,6 +633,13 @@ class AntSim:
         for line in lines:
             self.sidebar.insert(tk.END, line + "\n")
         self.sidebar.insert(tk.END, "\nColony Stats:\n" + metrics)
+        all_entities = [self.queen] + self.ants
+        sel = all_entities[self.selected_index]
+        if sel is self.queen:
+            thought = self.queen.thought()
+            self.sidebar.insert(tk.END, f"\nQueen Thought: {thought}")
+        else:
+            self.sidebar.insert(tk.END, f"\nSelected: {sel.role}")
         self.sidebar.configure(state="disabled")
         self.master.after(1000, self.update_sidebar)
 
@@ -535,6 +648,9 @@ class AntSim:
             ant.update()
 
         self.queen.update()
+        for drop in self.food_drops[:]:
+            if drop.charges <= 0:
+                self.food_drops.remove(drop)
         self.decay_pheromones()
 
         self.canvas.itemconfigure(self.stats_text, text=self.get_stats())
