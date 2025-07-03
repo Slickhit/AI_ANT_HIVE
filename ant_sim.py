@@ -187,12 +187,17 @@ class Terrain:
         for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
             nx, ny = x + dx, y + dy
             if self.get_cell(nx, ny) != TILE_TUNNEL:
+                # Tkinter does not support 8 digit hex colors for transparency.
+                # Use a stipple pattern with a solid black fill to create a
+                # semi-transparent overlay instead.
                 self.shades[x][y] = self.canvas.create_rectangle(
                     x * TILE_SIZE,
                     y * TILE_SIZE,
                     (x + 1) * TILE_SIZE,
                     (y + 1) * TILE_SIZE,
-                    fill="#00000040",
+                    fill="#000000",
+                    stipple="gray50",
+                    outline="",
                 )
                 break
 
