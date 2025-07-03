@@ -21,6 +21,7 @@ TILE_SIZE = MOVE_STEP
 PHEROMONE_DECAY = 0.01
 SCOUT_PHEROMONE_AMOUNT = 1.0
 
+
 # Terrain constants
 TILE_SIZE = 20
 TILE_SAND = "sand"
@@ -255,6 +256,7 @@ class WorkerAnt(BaseAnt):
 
 
 class ScoutAnt(BaseAnt):
+class ScoutAnt(BaseAnt):
     """Ant that explores randomly, remembering visited positions."""
 
     def __init__(self, sim: "AntSim", x: int, y: int, color: str = "black") -> None:
@@ -286,34 +288,6 @@ class ScoutAnt(BaseAnt):
         self.last_pos = (coords[0], coords[1])
         self.visited.add(self.last_pos)
 
-
-
-class SoldierAnt(BaseAnt):
-    """Ant dedicated to defending the colony."""
-
-    def update(self) -> None:
-        if self.energy <= 0:
-            self.status = "Tired"
-            return
-        self.energy = max(0, self.energy - 0.1)
-        # Placeholder behavior: patrol randomly near the queen
-        self.move_random()
-        coords = self.sim.canvas.coords(self.item)
-        self.last_pos = (coords[0], coords[1])
-
-
-class NurseAnt(BaseAnt):
-    """Ant responsible for caring for larvae and the queen."""
-
-    def update(self) -> None:
-        if self.energy <= 0:
-            self.status = "Tired"
-            return
-        self.energy = max(0, self.energy - 0.05)
-        # Placeholder behavior: stay close to the queen
-        self.move_towards(self.sim.queen.item)
-        coords = self.sim.canvas.coords(self.item)
-        self.last_pos = (coords[0], coords[1])
 
 
 class Queen:
@@ -431,6 +405,13 @@ class AntSim:
             ry = random.randint(self.terrain.height // 2, self.terrain.height - 1)
             self.terrain.set_cell(rx, ry, TILE_ROCK)
 
+
+        # Pheromone grid
+        self.grid_width = WINDOW_WIDTH // TILE_SIZE
+        self.grid_height = WINDOW_HEIGHT // TILE_SIZE
+        self.pheromones: list[list[float]] = [
+            [0.0 for _ in range(self.grid_height)] for _ in range(self.grid_width)
+        ]
 
         # Entities
         self.food: int = self.canvas.create_rectangle(
