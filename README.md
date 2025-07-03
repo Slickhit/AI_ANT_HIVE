@@ -28,7 +28,6 @@ Start the GUI with:
 ```bash
 python ant_sim.py
 ```
- main
 
 ## Development
 
@@ -42,7 +41,6 @@ python -m pytest
 
 ## License
 
-main
 
 ## License
 
