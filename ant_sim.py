@@ -1,8 +1,14 @@
 from __future__ import annotations
 
+import json
+import os
 import random
 import tkinter as tk
 from typing import List, Tuple
+
+import openai
+
+openai.api_key = os.getenv("OPENAI_API_KEY", "")
 
 # Constants
 WINDOW_WIDTH = 400
@@ -41,6 +47,46 @@ class BaseAnt:
         self.last_pos = (coords[0], coords[1])
 
 
+class AIBaseAnt(BaseAnt):
+    """Ant that decides movement using the OpenAI API."""
+
+    def __init__(self, sim: "AntSim", x: int, y: int, color: str = "black", model: str | None = None) -> None:
+        super().__init__(sim, x, y, color)
+        self.model = model or os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
+
+    def get_ai_move(self) -> Tuple[int, int]:
+        key = os.getenv("OPENAI_API_KEY")
+        if not key:
+            return random.choice([-MOVE_STEP, 0, MOVE_STEP]), random.choice([-MOVE_STEP, 0, MOVE_STEP])
+        openai.api_key = key
+
+        state = {
+            "ant": self.sim.canvas.coords(self.item),
+            "food": self.sim.canvas.coords(self.sim.food),
+            "queen": self.sim.canvas.coords(self.sim.queen.item),
+        }
+        messages = [
+            {
+                "role": "system",
+                "content": "You control an ant in a grid. Respond with JSON like {\"dx\":5,\"dy\":0}."
+            },
+            {"role": "user", "content": json.dumps(state)},
+        ]
+
+        try:
+            resp = openai.ChatCompletion.create(model=self.model, messages=messages, max_tokens=10)
+            data = json.loads(resp.choices[0].message["content"])
+            return int(data.get("dx", 0)), int(data.get("dy", 0))
+        except Exception:
+            return 0, 0
+
+    def update(self) -> None:
+        dx, dy = self.get_ai_move()
+        self.sim.canvas.move(self.item, dx, dy)
+        coords = self.sim.canvas.coords(self.item)
+        self.last_pos = (coords[0], coords[1])
+
+
 class WorkerAnt(BaseAnt):
     """Ant focused on collecting food and feeding the queen."""
 
@@ -68,17 +114,45 @@ class ScoutAnt(BaseAnt):
 
 
 class Queen:
-    """Represents the colony's queen."""
+    """Represents the colony's queen. Uses OpenAI for spawn decisions."""
 
-    def __init__(self, sim: "AntSim", x: int, y: int) -> None:
+    def __init__(self, sim: "AntSim", x: int, y: int, model: str | None = None) -> None:
         self.sim = sim
         self.item: int = sim.canvas.create_oval(x, y, x + 40, y + 20, fill="purple")
         self.hunger: float = 100
         self.spawn_timer: int = 300
+        self.model = model or os.getenv("OPENAI_QUEEN_MODEL", "gpt-4-0125-preview")
 
     def feed(self, amount: float = 10) -> None:
         """Increase the queen's hunger level when fed."""
         self.hunger = min(100, self.hunger + amount)
+
+    def decide_spawn(self) -> bool:
+        key = os.getenv("OPENAI_API_KEY")
+        if not key:
+            return True
+        openai.api_key = key
+        prompt = {
+            "hunger": self.hunger,
+            "ants": len(self.sim.ants),
+            "food": self.sim.food_collected,
+        }
+        try:
+            resp = openai.ChatCompletion.create(
+                model=self.model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "Respond with yes or no if the queen should spawn a new worker.",
+                    },
+                    {"role": "user", "content": json.dumps(prompt)},
+                ],
+                max_tokens=1,
+            )
+            answer = resp.choices[0].message["content"].strip().lower()
+            return answer.startswith("y")
+        except Exception:
+            return True
 
     def update(self) -> None:
         """Handle hunger and periodically spawn new worker ants."""
@@ -91,10 +165,11 @@ class Queen:
             self.sim.canvas.itemconfigure(self.item, fill="purple")
 
         if self.spawn_timer <= 0 and self.hunger > 0:
-            x1, y1, x2, _ = self.sim.canvas.coords(self.item)
-            x = (x1 + x2) / 2
-            y = y1 - ANT_SIZE * 2
-            self.sim.ants.append(WorkerAnt(self.sim, int(x), int(y), "blue"))
+            if self.decide_spawn():
+                x1, y1, x2, _ = self.sim.canvas.coords(self.item)
+                x = (x1 + x2) / 2
+                y = y1 - ANT_SIZE * 2
+                self.sim.ants.append(WorkerAnt(self.sim, int(x), int(y), "blue"))
             self.spawn_timer = 300
 
 
