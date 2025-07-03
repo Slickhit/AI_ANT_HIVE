@@ -17,6 +17,12 @@ ANT_SIZE = 10
 FOOD_SIZE = 8
 MOVE_STEP = 5
 
+# Energy constants
+ENERGY_MAX = 100
+MOVE_ENERGY_COST = 1
+DIG_ENERGY_COST = 2
+REST_ENERGY_GAIN = 5
+
 
 class BaseAnt:
     """Base class for all ants."""
@@ -28,6 +34,7 @@ class BaseAnt:
         )
         self.carrying_food: bool = False
         self.last_pos: Tuple[float, float] = (float(x), float(y))
+        self.energy: int = ENERGY_MAX
 
     def move_random(self) -> None:
         dx = random.choice([-MOVE_STEP, 0, MOVE_STEP])
@@ -36,6 +43,7 @@ class BaseAnt:
         new_x1 = max(0, min(WINDOW_WIDTH - ANT_SIZE, x1 + dx))
         new_y1 = max(0, min(WINDOW_HEIGHT - ANT_SIZE, y1 + dy))
         self.sim.canvas.move(self.item, new_x1 - x1, new_y1 - y1)
+        self.consume_energy(MOVE_ENERGY_COST)
 
     def move_towards(self, target: int) -> None:
         x1, y1, _, _ = self.sim.canvas.coords(self.item)
@@ -45,8 +53,21 @@ class BaseAnt:
         new_x1 = max(0, min(WINDOW_WIDTH - ANT_SIZE, x1 + dx))
         new_y1 = max(0, min(WINDOW_HEIGHT - ANT_SIZE, y1 + dy))
         self.sim.canvas.move(self.item, new_x1 - x1, new_y1 - y1)
+        self.consume_energy(MOVE_ENERGY_COST)
+
+    def consume_energy(self, amount: int) -> None:
+        self.energy = max(0, self.energy - amount)
+
+    def rest(self) -> None:
+        self.energy = min(ENERGY_MAX, self.energy + REST_ENERGY_GAIN)
+
+    def dig(self) -> None:
+        self.consume_energy(DIG_ENERGY_COST)
 
     def update(self) -> None:
+        if self.energy <= 0:
+            self.rest()
+            return
         self.move_random()
         coords = self.sim.canvas.coords(self.item)
         self.last_pos = (coords[0], coords[1])
@@ -55,14 +76,23 @@ class BaseAnt:
 class AIBaseAnt(BaseAnt):
     """Ant that decides movement using the OpenAI API."""
 
-    def __init__(self, sim: "AntSim", x: int, y: int, color: str = "black", model: str | None = None) -> None:
+    def __init__(
+        self,
+        sim: "AntSim",
+        x: int,
+        y: int,
+        color: str = "black",
+        model: str | None = None,
+    ) -> None:
         super().__init__(sim, x, y, color)
         self.model = model or os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
 
     def get_ai_move(self) -> Tuple[int, int]:
         key = os.getenv("OPENAI_API_KEY")
         if not key:
-            return random.choice([-MOVE_STEP, 0, MOVE_STEP]), random.choice([-MOVE_STEP, 0, MOVE_STEP])
+            return random.choice([-MOVE_STEP, 0, MOVE_STEP]), random.choice(
+                [-MOVE_STEP, 0, MOVE_STEP]
+            )
         openai.api_key = key
 
         state = {
@@ -73,21 +103,29 @@ class AIBaseAnt(BaseAnt):
         messages = [
             {
                 "role": "system",
-                "content": "You control an ant in a grid. Respond with JSON like {\"dx\":5,\"dy\":0}."
+                "content": 'You control an ant in a grid. Respond with JSON like {"dx":5,"dy":0}.',
             },
             {"role": "user", "content": json.dumps(state)},
         ]
 
         try:
-            resp = openai.ChatCompletion.create(model=self.model, messages=messages, max_tokens=10)
+            resp = openai.ChatCompletion.create(
+                model=self.model, messages=messages, max_tokens=10
+            )
             data = json.loads(resp.choices[0].message["content"])
             return int(data.get("dx", 0)), int(data.get("dy", 0))
         except Exception:
             return 0, 0
 
     def update(self) -> None:
+        if self.energy <= 0:
+            self.rest()
+            coords = self.sim.canvas.coords(self.item)
+            self.last_pos = (coords[0], coords[1])
+            return
         dx, dy = self.get_ai_move()
         self.sim.canvas.move(self.item, dx, dy)
+        self.consume_energy(MOVE_ENERGY_COST)
         coords = self.sim.canvas.coords(self.item)
         self.last_pos = (coords[0], coords[1])
 
@@ -96,6 +134,11 @@ class WorkerAnt(BaseAnt):
     """Ant focused on collecting food and feeding the queen."""
 
     def update(self) -> None:
+        if self.energy <= 0:
+            self.rest()
+            coords = self.sim.canvas.coords(self.item)
+            self.last_pos = (coords[0], coords[1])
+            return
         if not self.carrying_food:
             self.move_towards(self.sim.food)
             if self.sim.check_collision(self.item, self.sim.food):
