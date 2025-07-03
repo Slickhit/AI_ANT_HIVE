@@ -116,5 +116,12 @@ class AntSim:
             if drop.charges <= 0:
                 self.food_drops.remove(drop)
         self.decay_pheromones()
-        self.stats_label.configure(text=f"Food Collected: {self.food_collected}")
+        stats = (
+            f"Food Collected: {self.food_collected}\n"
+            f"Fed to Queen: {self.queen_fed}\n"
+            f"Ants Active: {len(self.ants)}\n"
+            f"Eggs: {len(self.eggs)}\n"
+            f"Predators: {len(self.predators)}"
+        )
+        self.stats_label.configure(text=stats)
         self.master.after(100, self.update)

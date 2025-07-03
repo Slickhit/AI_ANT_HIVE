@@ -66,7 +66,8 @@ class AntHiveUI(tk.Tk):
             "Food Collected: 1\n"
             "Fed to Queen: 0\n"
             "Ants Active: 5\n"
-            "Eggs: 0"
+            "Eggs: 0\n"
+            "Predators: 1"
         )
         tk.Label(top, text=stats_text, bg="#f7e6cb", anchor="w", justify="left").pack(fill="x")
         # Middle section
