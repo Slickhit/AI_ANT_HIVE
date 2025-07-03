@@ -106,6 +106,7 @@ class WorkerAnt(BaseAnt):
             self.move_towards(self.sim.queen.item)
             if self.sim.check_collision(self.item, self.sim.queen.item):
                 self.sim.queen.feed()
+                self.sim.queen.fed += 1
                 self.sim.queen_fed += 1
                 self.carrying_food = False
         coords = self.sim.canvas.coords(self.item)
@@ -127,6 +128,9 @@ class Queen:
         self.hunger: float = 100
         self.spawn_timer: int = 300
         self.model = model or os.getenv("OPENAI_QUEEN_MODEL", "gpt-4-0125-preview")
+        self.mad: bool = False
+        self.ant_positions: dict[int, tuple[float, float]] = {}
+        self.fed: int = 0
 
     def feed(self, amount: float = 10) -> None:
         """Increase the queen's hunger level when fed."""
@@ -159,6 +163,20 @@ class Queen:
         except Exception:
             return True
 
+    def rescue_stuck_ants(self) -> None:
+        """Move ants that haven't changed position."""
+        for ant in self.sim.ants:
+            coords = self.sim.canvas.coords(ant.item)
+            last = self.ant_positions.get(ant.item)
+            if last is not None and coords[:2] == list(last):
+                self.sim.canvas.move(
+                    ant.item,
+                    random.choice([-MOVE_STEP, MOVE_STEP]),
+                    random.choice([-MOVE_STEP, MOVE_STEP]),
+                )
+                coords = self.sim.canvas.coords(ant.item)
+            self.ant_positions[ant.item] = (coords[0], coords[1])
+
     def update(self) -> None:
         """Handle hunger and periodically spawn new worker ants."""
         self.hunger -= 0.1
@@ -166,8 +184,13 @@ class Queen:
 
         if self.hunger < 50:
             self.sim.canvas.itemconfigure(self.item, fill="red")
+            self.mad = True
         else:
             self.sim.canvas.itemconfigure(self.item, fill="purple")
+            self.mad = False
+
+        if self.mad:
+            self.rescue_stuck_ants()
 
         if self.spawn_timer <= 0 and self.hunger > 0:
             if self.decide_spawn():
