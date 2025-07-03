@@ -36,6 +36,26 @@ PHEROMONE_DECAY = 0.01
 SCOUT_PHEROMONE_AMOUNT = 1.0
 
 
+# Utility to create a small glowing orb sprite
+def create_glowing_icon(size: int = 16, inner: str = "#ffff99", outer: str = "#ff9900") -> tk.PhotoImage:
+    """Return a circular gradient image used for food drops."""
+    img = tk.PhotoImage(width=size, height=size)
+    cx = cy = size / 2
+    ir, ig, ib = int(inner[1:3], 16), int(inner[3:5], 16), int(inner[5:7], 16)
+    or_, og, ob = int(outer[1:3], 16), int(outer[3:5], 16), int(outer[5:7], 16)
+    max_d = (size / 2) ** 2
+    for x in range(size):
+        for y in range(size):
+            dx = x + 0.5 - cx
+            dy = y + 0.5 - cy
+            t = min(1.0, (dx * dx + dy * dy) / max_d)
+            r = int(ir + (or_ - ir) * t)
+            g = int(ig + (og - ig) * t)
+            b = int(ib + (ob - ib) * t)
+            img.put(f"#{r:02x}{g:02x}{b:02x}", (x, y))
+    return img
+
+
 # Terrain constants
 TILE_SIZE = 20
 TILE_SAND = "sand"
@@ -186,20 +206,69 @@ class FoodDrop:
     def __init__(self, sim: "AntSim", x: int, y: int, charges: int = 5) -> None:
         self.sim = sim
         self.charges = charges
+        # Rectangle used for collision detection
         self.item = sim.canvas.create_rectangle(
             x,
             y,
             x + FOOD_SIZE,
             y + FOOD_SIZE,
-            fill="orange",
+            outline="",
+            fill="",
         )
+
+        self.icon = None
+        self.flash_icon = None
+        self.image_item = None
+        self.tooltip = None
+
+        if hasattr(sim.canvas, "create_image"):
+            self.icon = create_glowing_icon(FOOD_SIZE)
+            self.flash_icon = create_glowing_icon(FOOD_SIZE, inner="#ffffff", outer="#ffcc00")
+            self.image_item = sim.canvas.create_image(x, y, image=self.icon, anchor="nw")
+            self.tooltip = sim.canvas.create_text(
+                x + FOOD_SIZE / 2,
+                y - 10,
+                text=f"{self.charges} left",
+                state="hidden",
+                fill="black",
+                font=("Arial", 8),
+            )
+            sim.canvas.tag_bind(self.image_item, "<Enter>", self._show_tooltip)
+            sim.canvas.tag_bind(self.image_item, "<Leave>", self._hide_tooltip)
+            sim.canvas.tag_bind(self.image_item, "<Button-1>", self._on_click)
+
+    def _show_tooltip(self, _event=None) -> None:
+        if self.tooltip is not None:
+            self.sim.canvas.itemconfigure(self.tooltip, state="normal")
+
+    def _hide_tooltip(self, _event=None) -> None:
+        if self.tooltip is not None:
+            self.sim.canvas.itemconfigure(self.tooltip, state="hidden")
+
+    def _flash(self) -> None:
+        if self.image_item and self.flash_icon:
+            self.sim.canvas.itemconfigure(self.image_item, image=self.flash_icon)
+            if hasattr(self.sim, "master") and hasattr(self.sim.master, "after"):
+                self.sim.master.after(
+                    100, lambda: self.sim.canvas.itemconfigure(self.image_item, image=self.icon)
+                )
+
+    def _on_click(self, _event=None) -> None:
+        self.take_charge()
 
     def take_charge(self) -> bool:
         if self.charges <= 0:
             return False
         self.charges -= 1
+        self._flash()
+        if self.tooltip is not None:
+            self.sim.canvas.itemconfigure(self.tooltip, text=f"{self.charges} left")
         if self.charges <= 0:
             self.sim.canvas.delete(self.item)
+            if self.image_item:
+                self.sim.canvas.delete(self.image_item)
+            if self.tooltip:
+                self.sim.canvas.delete(self.tooltip)
         return True
 
 class BaseAnt:
@@ -693,9 +762,9 @@ class AntSim:
         self.sidebar.tag_configure("header", font=HEADER_FONT)
         self.sidebar.tag_configure("normal", font=MONO_FONT)
         self.sidebar.configure(state="disabled")
-        self.ant_icon = tk.PhotoImage(width=ANT_SIZE, height=ANT_SIZE)
-        self.ant_icon.put("black", to=(0, 0, ANT_SIZE, ANT_SIZE))
-        self.spawn_button = tk.Button(master, text="Food Drop")
+        self.food_icon = create_glowing_icon(20)
+        self.spawn_button = tk.Button(master, image=self.food_icon, text="Food Drop", compound="top", borderwidth=0)
+
         self.spawn_button.pack(side="top")
         self.spawn_button.bind("<ButtonPress-1>", self.start_place_food)
         self.canvas.bind("<Button-1>", self.place_food)
