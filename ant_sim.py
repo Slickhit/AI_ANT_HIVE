@@ -8,9 +8,24 @@ from typing import List, Tuple
 
 import openai
 
+# Constants
+PALETTE = {
+    "background": "#f4ecd8",
+    "sidebar": "#eee1c6",
+    "frame": "#d2b48c",
+    "bar_bg": "#5a462e",
+    "bar_green": "#4caf50",
+    "bar_yellow": "#c4b000",
+    "bar_red": "#8b0000",
+    "neon_purple": "#d400ff",
+}
+
+MONO_FONT = ("JetBrains Mono", 10)
+HEADER_FONT = ("JetBrains Mono", 10, "bold underline")
+
 openai.api_key = os.getenv("OPENAI_API_KEY", "")
 
-# Constants
+# Window constants
 WINDOW_WIDTH = 400
 WINDOW_HEIGHT = 600
 SIDEBAR_WIDTH = 150
@@ -110,6 +125,20 @@ class BaseAnt:
         self.item: int = sim.canvas.create_oval(
             x, y, x + ANT_SIZE, y + ANT_SIZE, fill=color
         )
+        self.energy_bar_bg = sim.canvas.create_rectangle(
+            x,
+            y - 4,
+            x + ANT_SIZE,
+            y - 2,
+            fill=PALETTE["bar_bg"],
+        )
+        self.energy_bar = sim.canvas.create_rectangle(
+            x,
+            y - 4,
+            x + ANT_SIZE,
+            y - 2,
+            fill=PALETTE["bar_green"],
+        )
         self.carrying_food: bool = False
         self.energy: float = min(ENERGY_MAX, energy)
         self.status: str = "Active"
@@ -162,6 +191,27 @@ class BaseAnt:
 
     def dig(self) -> None:
         self.consume_energy(DIG_ENERGY_COST)
+
+    def energy_color(self) -> str:
+        if self.energy > 60:
+            return PALETTE["bar_green"]
+        if self.energy > 30:
+            return PALETTE["bar_yellow"]
+        return PALETTE["bar_red"]
+
+    def update_energy_bar(self) -> None:
+        x1, y1, x2, _ = self.sim.canvas.coords(self.item)
+        self._set_coords(self.energy_bar_bg, x1, y1 - 4, x2, y1 - 2)
+        width = (self.energy / ENERGY_MAX) * (x2 - x1)
+        self._set_coords(self.energy_bar, x1, y1 - 4, x1 + width, y1 - 2)
+        self.sim.canvas.itemconfigure(self.energy_bar, fill=self.energy_color())
+
+    def _set_coords(self, item: int, x1: float, y1: float, x2: float, y2: float) -> None:
+        try:
+            self.sim.canvas.coords(item, x1, y1, x2, y2)
+        except TypeError:
+            if hasattr(self.sim.canvas, "objects"):
+                self.sim.canvas.objects[item] = [x1, y1, x2, y2]
 
 
     def update(self) -> None:
@@ -364,7 +414,23 @@ class Queen:
 
     def __init__(self, sim: "AntSim", x: int, y: int, model: str | None = None) -> None:
         self.sim = sim
-        self.item: int = sim.canvas.create_oval(x, y, x + 40, y + 20, fill="purple")
+        self.item: int = sim.canvas.create_oval(
+            x, y, x + 40, y + 20, fill=PALETTE["neon_purple"]
+        )
+        self.hunger_bar_bg = sim.canvas.create_rectangle(
+            x,
+            y - 6,
+            x + 40,
+            y - 4,
+            fill=PALETTE["bar_bg"],
+        )
+        self.hunger_bar = sim.canvas.create_rectangle(
+            x,
+            y - 6,
+            x + 40,
+            y - 4,
+            fill=PALETTE["bar_green"],
+        )
         self.hunger: float = 100
         self.spawn_timer: int = 300
         self.model = model or os.getenv("OPENAI_QUEEN_MODEL", "gpt-4-0125-preview")
@@ -376,6 +442,27 @@ class Queen:
     def feed(self, amount: float = 10) -> None:
         """Increase the queen's hunger level when fed."""
         self.hunger = min(100, self.hunger + amount)
+
+    def hunger_color(self) -> str:
+        if self.hunger > 60:
+            return PALETTE["bar_green"]
+        if self.hunger > 30:
+            return PALETTE["bar_yellow"]
+        return PALETTE["bar_red"]
+
+    def update_hunger_bar(self) -> None:
+        x1, y1, x2, _ = self.sim.canvas.coords(self.item)
+        self._set_coords(self.hunger_bar_bg, x1, y1 - 6, x2, y1 - 4)
+        width = (self.hunger / 100) * (x2 - x1)
+        self._set_coords(self.hunger_bar, x1, y1 - 6, x1 + width, y1 - 4)
+        self.sim.canvas.itemconfigure(self.hunger_bar, fill=self.hunger_color())
+
+    def _set_coords(self, item: int, x1: float, y1: float, x2: float, y2: float) -> None:
+        try:
+            self.sim.canvas.coords(item, x1, y1, x2, y2)
+        except TypeError:
+            if hasattr(self.sim.canvas, "objects"):
+                self.sim.canvas.objects[item] = [x1, y1, x2, y2]
 
     def thought(self) -> str:
         """Return the queen's current thought or mood."""
@@ -474,10 +561,10 @@ class Queen:
             self.sim.canvas.move(self.item, new_x1 - x1, new_y1 - y1)
 
         if self.hunger < 50:
-            self.sim.canvas.itemconfigure(self.item, fill="red")
+            self.sim.canvas.itemconfigure(self.item, fill=PALETTE["bar_red"])
             self.mad = True
         else:
-            self.sim.canvas.itemconfigure(self.item, fill="purple")
+            self.sim.canvas.itemconfigure(self.item, fill=PALETTE["neon_purple"])
             self.mad = False
 
         if self.mad:
@@ -491,17 +578,36 @@ class Queen:
                 self.sim.ants.append(WorkerAnt(self.sim, int(x), int(y), "blue"))
             self.spawn_timer = 300
 
+        self.update_hunger_bar()
+
 
 class AntSim:
     def __init__(self, master: tk.Tk) -> None:
         self.master = master
-        self.canvas = tk.Canvas(
-            master, width=WINDOW_WIDTH, height=WINDOW_HEIGHT, bg="white"
+        self.frame = tk.Frame(master, bg=PALETTE["frame"])
+        self.frame.pack(side="left", padx=5, pady=5)
+        self.title_label = tk.Label(
+            self.frame,
+            text="Ant Hive Simulation v0.1",
+            bg=PALETTE["frame"],
+            font=HEADER_FONT,
         )
-        self.canvas.pack(side="left")
-        self.sidebar = tk.Text(master, width=30)
+        self.title_label.pack(fill="x")
+        self.canvas = tk.Canvas(
+            self.frame,
+            width=WINDOW_WIDTH,
+            height=WINDOW_HEIGHT,
+            bg=PALETTE["background"],
+            highlightthickness=0,
+        )
+        self.canvas.pack()
+        self.sidebar = tk.Text(master, width=30, bg=PALETTE["sidebar"], font=MONO_FONT)
         self.sidebar.pack(side="right", fill="y")
+        self.sidebar.tag_configure("header", font=HEADER_FONT)
+        self.sidebar.tag_configure("normal", font=MONO_FONT)
         self.sidebar.configure(state="disabled")
+        self.ant_icon = tk.PhotoImage(width=ANT_SIZE, height=ANT_SIZE)
+        self.ant_icon.put("black", to=(0, 0, ANT_SIZE, ANT_SIZE))
         self.spawn_button = tk.Button(master, text="Food Drop")
         self.spawn_button.pack(side="top")
         self.spawn_button.bind("<ButtonPress-1>", self.start_place_food)
@@ -629,23 +735,26 @@ class AntSim:
         )
         self.sidebar.configure(state="normal")
         self.sidebar.delete("1.0", tk.END)
-        self.sidebar.insert(tk.END, "Ant Stats:\n")
+        self.sidebar.insert(tk.END, "Ant Stats:\n", "header")
         for line in lines:
-            self.sidebar.insert(tk.END, line + "\n")
-        self.sidebar.insert(tk.END, "\nColony Stats:\n" + metrics)
+            self.sidebar.image_create(tk.END, image=self.ant_icon)
+            self.sidebar.insert(tk.END, " " + line + "\n", "normal")
+        self.sidebar.insert(tk.END, "\nColony Stats:\n", "header")
+        self.sidebar.insert(tk.END, metrics, "normal")
         all_entities = [self.queen] + self.ants
         sel = all_entities[self.selected_index]
         if sel is self.queen:
             thought = self.queen.thought()
-            self.sidebar.insert(tk.END, f"\nQueen Thought: {thought}")
+            self.sidebar.insert(tk.END, f"\nQueen Thought: {thought}", "normal")
         else:
-            self.sidebar.insert(tk.END, f"\nSelected: {sel.role}")
+            self.sidebar.insert(tk.END, f"\nSelected: {sel.role}", "normal")
         self.sidebar.configure(state="disabled")
         self.master.after(1000, self.update_sidebar)
 
     def update(self) -> None:
         for ant in self.ants:
             ant.update()
+            ant.update_energy_bar()
 
         self.queen.update()
         for drop in self.food_drops[:]:
@@ -659,6 +768,6 @@ class AntSim:
 
 if __name__ == "__main__":
     root = tk.Tk()
-    root.title("AI Ant Hive")
+    root.title("Ant Hive Simulation v0.1")
     app = AntSim(root)
     root.mainloop()
