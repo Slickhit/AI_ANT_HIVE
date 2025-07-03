@@ -27,8 +27,9 @@ python ant_sim.py
 The sidebar on the right lists each ant's status and overall colony metrics.
 At the top of the sidebar you'll find a **Food Drop** button. Clicking it lets
 you place additional food sources in the simulation. Just below the button a
-small statistics label continuously updates with collected food, queen hunger
-and the number of active ants.
+small statistics label continuously updates with collected food, how much has
+been fed to the queen, the number of active ants, the current egg count and
+how many predators are present.
 
 ## Development
 
