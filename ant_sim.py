@@ -8,6 +8,39 @@ ANT_SIZE = 10
 FOOD_SIZE = 8
 MOVE_STEP = 5
 
+
+class Queen:
+    """Represents the colony's queen."""
+
+    def __init__(self, sim, x, y):
+        self.sim = sim
+        self.item = sim.canvas.create_oval(x, y, x + 40, y + 20, fill="purple")
+        self.hunger = 100
+        self.spawn_timer = 300
+
+    def feed(self, amount=10):
+        """Increase the queen's hunger level when fed."""
+        self.hunger = min(100, self.hunger + amount)
+
+    def update(self):
+        """Handle hunger and periodically spawn new worker ants."""
+        self.hunger -= 0.1
+        self.spawn_timer -= 1
+
+        # Change color if the queen is getting hungry
+        if self.hunger < 50:
+            self.sim.canvas.itemconfigure(self.item, fill="red")
+        else:
+            self.sim.canvas.itemconfigure(self.item, fill="purple")
+
+        # Spawn a new worker when the timer reaches zero
+        if self.spawn_timer <= 0 and self.hunger > 0:
+            x1, y1, x2, y2 = self.sim.canvas.coords(self.item)
+            x = (x1 + x2) / 2
+            y = y1 - ANT_SIZE * 2
+            self.sim.ants.append(WorkerAnt(self.sim, x, y, "blue"))
+            self.spawn_timer = 300
+
 class BaseAnt:
     """Base class for all ants."""
     def __init__(self, sim, x, y, color="black"):
@@ -34,6 +67,7 @@ class BaseAnt:
 
 class WorkerAnt(BaseAnt):
     """Ant focused on collecting food and feeding the queen."""
+
     def update(self):
         if not self.carrying_food:
             self.move_towards(self.sim.food)
@@ -42,8 +76,9 @@ class WorkerAnt(BaseAnt):
                 self.sim.food_collected += 1
                 self.sim.move_food()
         else:
-            self.move_towards(self.sim.queen)
-            if self.sim.check_collision(self.item, self.sim.queen):
+            self.move_towards(self.sim.queen.item)
+            if self.sim.check_collision(self.item, self.sim.queen.item):
+                self.sim.queen.feed()
                 self.sim.queen_fed += 1
                 self.carrying_food = False
         self.last_pos = tuple(self.sim.canvas.coords(self.item)[:2])
@@ -60,7 +95,7 @@ class AntSim:
 
         # Entities
         self.food = self.canvas.create_rectangle(180, 20, 180 + FOOD_SIZE, 20 + FOOD_SIZE, fill='green')
-        self.queen = self.canvas.create_oval(180, 570, 180 + 40, 570 + 20, fill='purple')
+        self.queen = Queen(self, 180, 570)
 
         # Ants
         self.ants = [WorkerAnt(self, 195, 295, "blue"),
@@ -92,6 +127,7 @@ class AntSim:
     def update(self):
         for ant in self.ants:
             ant.update()
+        self.queen.update()
 
         self.canvas.itemconfigure(self.stats_text, text=self.get_stats())
         self.master.after(100, self.update)
