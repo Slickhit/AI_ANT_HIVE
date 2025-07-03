@@ -38,6 +38,34 @@ class AntSim:
         self.spawn_button.pack(side="top")
         self.stats_label = tk.Label(self.sidebar_frame, bg=PALETTE["frame"], font=("Arial", 10))
         self.stats_label.pack(side="top")
+
+        # Panel for individual ant statistics
+        self.ant_panel = tk.Frame(self.sidebar_frame, bg="#f9ebcc")
+        self.ant_panel.pack(side="top", fill="both", expand=True, pady=5)
+        tk.Label(
+            self.ant_panel,
+            text="Ant Stats:",
+            font=("Arial", 10, "bold"),
+            bg="#f9ebcc",
+            anchor="w",
+        ).pack(fill="x")
+        self.ant_canvas = tk.Canvas(
+            self.ant_panel,
+            bg="#f9ebcc",
+            highlightthickness=0,
+        )
+        self.ant_scroll = tk.Scrollbar(
+            self.ant_panel, orient="vertical", command=self.ant_canvas.yview
+        )
+        self.ant_canvas.configure(yscrollcommand=self.ant_scroll.set)
+        self.ant_scroll.pack(side="right", fill="y")
+        self.ant_canvas.pack(side="left", fill="both", expand=True)
+        self.ant_list = tk.Frame(self.ant_canvas, bg="#f9ebcc")
+        self.ant_canvas.create_window((0, 0), window=self.ant_list, anchor="nw")
+        self.ant_list.bind(
+            "<Configure>",
+            lambda e: self.ant_canvas.configure(scrollregion=self.ant_canvas.bbox("all")),
+        )
         self.spawn_button.bind("<ButtonPress-1>", self.start_place_food)
         self.canvas.bind("<Button-1>", self.place_food)
         self.placing_food = False
@@ -66,6 +94,20 @@ class AntSim:
         self.food_collected: int = 0
         self.queen_fed: int = 0
         self.update()
+
+    def refresh_ant_stats(self) -> None:
+        for w in self.ant_list.winfo_children():
+            w.destroy()
+        for ant in self.ants:
+            text = f"\u25A0 ID {ant.ant_id:04d} | {ant.role} | E:{int(ant.energy)} | {ant.status}"
+            tk.Label(
+                self.ant_list,
+                text=text,
+                anchor="w",
+                bg="#f9ebcc",
+                fg=getattr(ant, "color", "black"),
+                font=("Arial", 9),
+            ).pack(fill="x")
 
     def start_place_food(self, _event) -> None:
         self.placing_food = True
@@ -124,4 +166,5 @@ class AntSim:
             f"Predators: {len(self.predators)}"
         )
         self.stats_label.configure(text=stats)
+        self.refresh_ant_stats()
         self.master.after(100, self.update)
