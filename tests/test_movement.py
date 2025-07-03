@@ -4,11 +4,17 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 import random
 
-from ant_sim import BaseAnt
-from ant_sim import MOVE_STEP
-from ant_sim import ANT_SIZE
-from ant_sim import WINDOW_WIDTH
-from ant_sim import WINDOW_HEIGHT
+from ant_sim import (
+    BaseAnt,
+    MOVE_STEP,
+    ANT_SIZE,
+    WINDOW_WIDTH,
+    WINDOW_HEIGHT,
+    Terrain,
+    TILE_SIZE,
+    TILE_TUNNEL,
+    TILE_SAND,
+)
 
 
 class FakeCanvas:
@@ -45,6 +51,12 @@ class FakeCanvas:
 class FakeSim:
     def __init__(self):
         self.canvas = FakeCanvas()
+
+
+class FakeSimWithTerrain(FakeSim):
+    def __init__(self):
+        super().__init__()
+        self.terrain = Terrain(3, 3, self.canvas)
 
 
 class DummyTarget:
@@ -111,3 +123,17 @@ class TestBaseAntMovement:
         x1, y1, x2, y2 = sim.canvas.coords(ant.item)
         assert x1 == start_x and y1 == start_y
         assert x2 == start_x + ANT_SIZE and y2 == start_y + ANT_SIZE
+
+    def test_digging_costs_more_energy(self):
+        sim = FakeSimWithTerrain()
+        ant = BaseAnt(sim, 0, 0, energy=10)
+        ant.attempt_move(TILE_SIZE, 0)
+        assert ant.energy == 8
+        assert sim.terrain.get_cell(1, 0) == TILE_TUNNEL
+
+    def test_tunnel_movement_costs_one_energy(self):
+        sim = FakeSimWithTerrain()
+        sim.terrain.set_cell(1, 0, TILE_TUNNEL)
+        ant = BaseAnt(sim, 0, 0, energy=10)
+        ant.attempt_move(TILE_SIZE, 0)
+        assert ant.energy == 9
