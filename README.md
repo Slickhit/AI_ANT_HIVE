@@ -31,4 +31,10 @@ The `tests` folder contains a small test suite. Run it with:
 ```bash
 python -m pytest
 ```
+73jotk-codex/expand-readme-with-setup-and-usage-instructions
+
+
+## License
+
+main
 
