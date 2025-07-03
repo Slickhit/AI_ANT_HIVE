@@ -52,8 +52,9 @@ class WorkerAnt(BaseAnt):
                 self.sim.food_collected += 1
                 self.sim.move_food()
         else:
-            self.move_towards(self.sim.queen)
-            if self.sim.check_collision(self.item, self.sim.queen):
+            self.move_towards(self.sim.queen.item)
+            if self.sim.check_collision(self.item, self.sim.queen.item):
+                self.sim.queen.feed()
                 self.sim.queen_fed += 1
                 self.carrying_food = False
         coords = self.sim.canvas.coords(self.item)
@@ -64,6 +65,37 @@ class ScoutAnt(BaseAnt):
     """Ant that explores randomly, remembering its last position."""
 
     pass
+
+
+class Queen:
+    """Represents the colony's queen."""
+
+    def __init__(self, sim: "AntSim", x: int, y: int) -> None:
+        self.sim = sim
+        self.item: int = sim.canvas.create_oval(x, y, x + 40, y + 20, fill="purple")
+        self.hunger: float = 100
+        self.spawn_timer: int = 300
+
+    def feed(self, amount: float = 10) -> None:
+        """Increase the queen's hunger level when fed."""
+        self.hunger = min(100, self.hunger + amount)
+
+    def update(self) -> None:
+        """Handle hunger and periodically spawn new worker ants."""
+        self.hunger -= 0.1
+        self.spawn_timer -= 1
+
+        if self.hunger < 50:
+            self.sim.canvas.itemconfigure(self.item, fill="red")
+        else:
+            self.sim.canvas.itemconfigure(self.item, fill="purple")
+
+        if self.spawn_timer <= 0 and self.hunger > 0:
+            x1, y1, x2, _ = self.sim.canvas.coords(self.item)
+            x = (x1 + x2) / 2
+            y = y1 - ANT_SIZE * 2
+            self.sim.ants.append(WorkerAnt(self.sim, int(x), int(y), "blue"))
+            self.spawn_timer = 300
 
 
 class AntSim:
@@ -78,9 +110,7 @@ class AntSim:
         self.food: int = self.canvas.create_rectangle(
             180, 20, 180 + FOOD_SIZE, 20 + FOOD_SIZE, fill="green"
         )
-        self.queen: int = self.canvas.create_oval(
-            180, 570, 180 + 40, 570 + 20, fill="purple"
-        )
+        self.queen: Queen = Queen(self, 180, 570)
 
         # Ants
         self.ants: List[BaseAnt] = [
@@ -120,6 +150,8 @@ class AntSim:
     def update(self) -> None:
         for ant in self.ants:
             ant.update()
+
+        self.queen.update()
 
         self.canvas.itemconfigure(self.stats_text, text=self.get_stats())
         self.master.after(100, self.update)
