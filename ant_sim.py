@@ -271,6 +271,24 @@ class FoodDrop:
                 self.sim.canvas.delete(self.tooltip)
         return True
 
+
+class Egg:
+    """Represents an egg that will hatch into a new worker ant."""
+
+    def __init__(self, sim: "AntSim", x: int, y: int, hatch_time: int = 200) -> None:
+        self.sim = sim
+        self.hatch_time = hatch_time
+        self.item = sim.canvas.create_oval(x, y, x + ANT_SIZE, y + ANT_SIZE, fill="white")
+
+    def update(self) -> None:
+        self.hatch_time -= 1
+        if self.hatch_time <= 0:
+            x1, y1, _, _ = self.sim.canvas.coords(self.item)
+            self.sim.canvas.delete(self.item)
+            self.sim.eggs.remove(self)
+            self.sim.ants.append(WorkerAnt(self.sim, int(x1), int(y1), "blue"))
+
+
 class BaseAnt:
     """Base class for all ants."""
 
@@ -490,6 +508,9 @@ class WorkerAnt(BaseAnt):
                 self.sim.queen.feed()
                 self.sim.queen.fed += 1
                 self.sim.queen_fed += 1
+                if random.random() < 0.3:
+                    qx1, qy1, _, _ = self.sim.canvas.coords(self.sim.queen.item)
+                    self.sim.queen.lay_egg(int(qx1 + 20), int(qy1))
                 self.carrying_food = False
         coords = self.sim.canvas.coords(self.item)
         self.last_pos = (coords[0], coords[1])
@@ -561,6 +582,9 @@ class NurseAnt(BaseAnt):
                 if hasattr(self.sim, "queen_fed"):
                     self.sim.queen.fed += 1
                     self.sim.queen_fed += 1
+                if random.random() < 0.3:
+                    qx1, qy1, _, _ = self.sim.canvas.coords(self.sim.queen.item)
+                    self.sim.queen.lay_egg(int(qx1 + 20), int(qy1))
         coords = self.sim.canvas.coords(self.item)
         self.last_pos = (coords[0], coords[1])
 
@@ -594,6 +618,8 @@ class Queen:
         self.ant_positions: dict[int, tuple[float, float]] = {}
         self.fed: int = 0
         self.move_counter: int = 0
+        self.thought_timer: int = 0
+        self.current_thought: str = ""
 
     def feed(self, amount: float = 10) -> None:
         """Increase the queen's hunger level when fed."""
@@ -634,25 +660,51 @@ class Queen:
             "hunger": int(self.hunger),
             "fed": self.fed,
             "food": self.sim.food_collected,
+            "ants": len(getattr(self.sim, "ants", [])),
+            "eggs": len(getattr(self.sim, "eggs", [])),
         }
+
+        if not hasattr(self, "thought_timer"):
+            self.thought_timer = 0
+            self.current_thought = random.choice(default)
+
+        if self.thought_timer > 0:
+            self.thought_timer -= 1
+            return self.current_thought
+
         if not key:
-            return random.choice(default)
-        openai.api_key = key
-        try:
-            resp = openai.ChatCompletion.create(
-                model=self.model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "You are a snarky ant queen. Reply with a single short thought about your state.",
-                    },
-                    {"role": "user", "content": json.dumps(prompt)},
-                ],
-                max_tokens=20,
-            )
-            return resp.choices[0].message["content"].strip()
-        except Exception:
-            return random.choice(default)
+            if self.hunger < 30:
+                new_thought = "I'm starving... bring food!"
+            elif prompt["eggs"] > 0:
+                new_thought = f"Waiting on {prompt['eggs']} eggs."
+            elif prompt["ants"] < 5:
+                new_thought = "We need more workers."
+            else:
+                new_thought = random.choice(default)
+        else:
+            openai.api_key = key
+            try:
+                resp = openai.ChatCompletion.create(
+                    model=self.model,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "You are a snarky ant queen. Reply with a single short thought about your state.",
+                        },
+                        {"role": "user", "content": json.dumps(prompt)},
+                    ],
+                    max_tokens=20,
+                )
+                new_thought = resp.choices[0].message["content"].strip()
+            except Exception:
+                if self.hunger < 30:
+                    new_thought = "I'm starving... bring food!"
+                else:
+                    new_thought = random.choice(default)
+
+        self.current_thought = new_thought
+        self.thought_timer = 5
+        return new_thought
 
     def decide_spawn(self) -> bool:
         key = os.getenv("OPENAI_API_KEY")
@@ -703,6 +755,19 @@ class Queen:
                 coords = self.sim.canvas.coords(ant.item)
             self.ant_positions[ant.item] = (coords[0], coords[1])
 
+    def lay_egg(self, x: int, y: int) -> None:
+        """Spawn an egg near the given coordinates."""
+        spawn_direct = False
+        if not hasattr(self.sim, "eggs"):
+            self.sim.eggs = []
+            spawn_direct = True
+        egg = Egg(self.sim, x, y)
+        self.sim.eggs.append(egg)
+        if spawn_direct:
+            # tests or simplified sims expect immediate ants
+            self.sim.eggs.remove(egg)
+            self.sim.ants.append(WorkerAnt(self.sim, x, y, "blue"))
+
     def update(self) -> None:
         """Handle hunger and periodically spawn new worker ants."""
         self.hunger -= 0.1
@@ -731,7 +796,7 @@ class Queen:
                 x1, y1, x2, _ = self.sim.canvas.coords(self.item)
                 x = (x1 + x2) / 2
                 y = y1 - ANT_SIZE * 2
-                self.sim.ants.append(WorkerAnt(self.sim, int(x), int(y), "blue"))
+                self.lay_egg(int(x), int(y))
             self.spawn_timer = 300
 
         self.update_hunger_bar()
@@ -771,6 +836,7 @@ class AntSim:
         self.placing_food = False
 
         self.food_drops: List[FoodDrop] = []
+        self.eggs: List[Egg] = []
         self.selected_index = 0
         self.master.bind("<Tab>", self.cycle_selection)
 
@@ -876,7 +942,8 @@ class AntSim:
         return (
             f"Food Collected: {self.food_collected}\n"
             f"Fed to Queen: {self.queen_fed}\n"
-            f"Ants Active: {len(self.ants)}"
+            f"Ants Active: {len(self.ants)}\n"
+            f"Eggs: {len(self.eggs)}"
         )
 
     def update_sidebar(self) -> None:
@@ -887,7 +954,8 @@ class AntSim:
         metrics = (
             f"Food: {self.food_collected}\n"
             f"Queen Hunger: {int(self.queen.hunger)}\n"
-            f"Ants: {len(self.ants)}"
+            f"Ants: {len(self.ants)}\n"
+            f"Eggs: {len(self.eggs)}"
         )
         self.sidebar.configure(state="normal")
         self.sidebar.delete("1.0", tk.END)
@@ -911,6 +979,9 @@ class AntSim:
         for ant in self.ants:
             ant.update()
             ant.update_energy_bar()
+
+        for egg in self.eggs[:]:
+            egg.update()
 
         self.queen.update()
         for drop in self.food_drops[:]:
