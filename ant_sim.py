@@ -6,11 +6,38 @@ import random
 import tkinter as tk
 from typing import List, Tuple
 
-import openai
+try:
+    import openai
+except Exception:  # pragma: no cover - optional dependency
+    class _DummyChat:
+        @staticmethod
+        def create(*_args, **_kwargs):
+            raise ModuleNotFoundError("openai is required for this feature")
+
+    class _DummyOpenAI:
+        api_key = ""
+        ChatCompletion = _DummyChat
+
+    openai = _DummyOpenAI()
+
+# Constants
+PALETTE = {
+    "background": "#f4ecd8",
+    "sidebar": "#eee1c6",
+    "frame": "#d2b48c",
+    "bar_bg": "#5a462e",
+    "bar_green": "#4caf50",
+    "bar_yellow": "#c4b000",
+    "bar_red": "#8b0000",
+    "neon_purple": "#d400ff",
+}
+
+MONO_FONT = ("JetBrains Mono", 10)
+HEADER_FONT = ("JetBrains Mono", 10, "bold underline")
 
 openai.api_key = os.getenv("OPENAI_API_KEY", "")
 
-# Constants
+# Window constants
 WINDOW_WIDTH = 400
 WINDOW_HEIGHT = 600
 SIDEBAR_WIDTH = 150
@@ -45,12 +72,49 @@ def _load_sprites() -> list[tk.PhotoImage | None]:
 ANT_SPRITES = _load_sprites()
 
 
+# Utility to create a small glowing orb sprite
+def create_glowing_icon(size: int = 16, inner: str = "#ffff99", outer: str = "#ff9900") -> tk.PhotoImage:
+    """Return a circular gradient image used for food drops."""
+    img = tk.PhotoImage(width=size, height=size)
+    cx = cy = size / 2
+    ir, ig, ib = int(inner[1:3], 16), int(inner[3:5], 16), int(inner[5:7], 16)
+    or_, og, ob = int(outer[1:3], 16), int(outer[3:5], 16), int(outer[5:7], 16)
+    max_d = (size / 2) ** 2
+    for x in range(size):
+        for y in range(size):
+            dx = x + 0.5 - cx
+            dy = y + 0.5 - cy
+            t = min(1.0, (dx * dx + dy * dy) / max_d)
+            r = int(ir + (or_ - ir) * t)
+            g = int(ig + (og - ig) * t)
+            b = int(ib + (ob - ib) * t)
+            img.put(f"#{r:02x}{g:02x}{b:02x}", (x, y))
+    return img
+
+
 # Terrain constants
 TILE_SIZE = 20
 TILE_SAND = "sand"
 TILE_TUNNEL = "tunnel"
 TILE_ROCK = "rock"
 TILE_COLLAPSED = "collapsed"
+
+# Small base64 encoded textures to avoid binary files in the repository
+SAND_TEXTURE = (
+    "iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAARklEQVR4nO3QMRHAMBADwctjEPRg"
+    "MgSjEAenyJiArfLVqdninjneZZs9Sdz8SmKSqCRm+wdTGEAlMeiGCbwbdsOD3w3v8Q8txS8qFa7u"
+    "XQAAAABJRU5ErkJggg=="
+)
+TUNNEL_TEXTURE = (
+    "iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAARklEQVR4nO3QMRHAMBADwctjEIsg"
+    "NA/DFAenyJiArfLVqdninjneZZs9Sdz8SmKSqCRm+wdTGEAlMeiGCbwbdsOD3w3v8Q8OIi4y+xWE"
+    "tQAAAABJRU5ErkJggg=="
+)
+ROCK_TEXTURE = (
+    "iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAAQklEQVR4nO3QsRHAQAwCwbNqoHO1"
+    "SQ/+4McNWIQiI9ngnu5+bfNNEpNfSUwSlcRsXzCFAVQSg22YwLfhNvzxt+EcPz04LrP+YyCNAAAA"
+    "AElFTkSuQmCC"
+)
 
 class Terrain:
     """Simple 2D grid representing the underground."""
@@ -62,28 +126,75 @@ class Terrain:
         TILE_COLLAPSED: "black",
     }
 
+    texture_data = {
+        TILE_SAND: SAND_TEXTURE,
+        TILE_TUNNEL: TUNNEL_TEXTURE,
+        TILE_ROCK: ROCK_TEXTURE,
+    }
+
     def __init__(self, width: int, height: int, canvas: tk.Canvas) -> None:
         self.width = width
         self.height = height
         self.canvas = canvas
+        self.images: dict[str, tk.PhotoImage | None] = {}
+        for key, data in self.texture_data.items():
+            try:
+                self.images[key] = tk.PhotoImage(data=data)
+            except Exception:
+                # When running headless tests there may be no Tk instance
+                self.images[key] = None
         self.grid: list[list[str]] = [
             [TILE_SAND for _ in range(height)] for _ in range(width)
         ]
         self.rects: list[list[int]] = [[0] * height for _ in range(width)]
+        self.shades: list[list[int]] = [[0] * height for _ in range(width)]
         self._render()
 
     def _render(self) -> None:
         for x in range(self.width):
             for y in range(self.height):
                 state = self.grid[x][y]
-                rect = self.canvas.create_rectangle(
+                if hasattr(self.canvas, "create_image") and self.images.get(state):
+                    rect = self.canvas.create_image(
+                        x * TILE_SIZE,
+                        y * TILE_SIZE,
+                        anchor="nw",
+                        image=self.images[state],
+                    )
+                else:
+                    rect = self.canvas.create_rectangle(
+                        x * TILE_SIZE,
+                        y * TILE_SIZE,
+                        (x + 1) * TILE_SIZE,
+                        (y + 1) * TILE_SIZE,
+                        fill=self.colors[state],
+                    )
+                self.rects[x][y] = rect
+                self._update_shading(x, y)
+
+    def _update_shading(self, x: int, y: int) -> None:
+        """Add a semi-transparent overlay on tunnel edges."""
+        if self.shades[x][y]:
+            if hasattr(self.canvas, "delete"):
+                self.canvas.delete(self.shades[x][y])
+            self.shades[x][y] = 0
+
+        state = self.grid[x][y]
+        if state != TILE_TUNNEL:
+            return
+
+        # Determine if any neighbour is non-tunnel
+        for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+            nx, ny = x + dx, y + dy
+            if self.get_cell(nx, ny) != TILE_TUNNEL:
+                self.shades[x][y] = self.canvas.create_rectangle(
                     x * TILE_SIZE,
                     y * TILE_SIZE,
                     (x + 1) * TILE_SIZE,
                     (y + 1) * TILE_SIZE,
-                    fill=self.colors[state],
+                    fill="#00000040",
                 )
-                self.rects[x][y] = rect
+                break
 
     def get_cell(self, x: int, y: int) -> str:
         if x < 0 or y < 0 or x >= self.width or y >= self.height:
@@ -93,7 +204,30 @@ class Terrain:
     def set_cell(self, x: int, y: int, state: str) -> None:
         if 0 <= x < self.width and 0 <= y < self.height:
             self.grid[x][y] = state
-            self.canvas.itemconfigure(self.rects[x][y], fill=self.colors[state])
+            if hasattr(self.canvas, "delete"):
+                self.canvas.delete(self.rects[x][y])
+                if self.shades[x][y]:
+                    self.canvas.delete(self.shades[x][y])
+            if hasattr(self.canvas, "create_image") and self.images.get(state):
+                self.rects[x][y] = self.canvas.create_image(
+                    x * TILE_SIZE,
+                    y * TILE_SIZE,
+                    anchor="nw",
+                    image=self.images[state],
+                )
+            else:
+                self.rects[x][y] = self.canvas.create_rectangle(
+                    x * TILE_SIZE,
+                    y * TILE_SIZE,
+                    (x + 1) * TILE_SIZE,
+                    (y + 1) * TILE_SIZE,
+                    fill=self.colors[state],
+                )
+            self._update_shading(x, y)
+            for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                nx, ny = x + dx, y + dy
+                if 0 <= nx < self.width and 0 <= ny < self.height:
+                    self._update_shading(nx, ny)
 
 # Energy constants
 ENERGY_MAX = 100
@@ -108,20 +242,69 @@ class FoodDrop:
     def __init__(self, sim: "AntSim", x: int, y: int, charges: int = 5) -> None:
         self.sim = sim
         self.charges = charges
+        # Rectangle used for collision detection
         self.item = sim.canvas.create_rectangle(
             x,
             y,
             x + FOOD_SIZE,
             y + FOOD_SIZE,
-            fill="orange",
+            outline="",
+            fill="",
         )
+
+        self.icon = None
+        self.flash_icon = None
+        self.image_item = None
+        self.tooltip = None
+
+        if hasattr(sim.canvas, "create_image"):
+            self.icon = create_glowing_icon(FOOD_SIZE)
+            self.flash_icon = create_glowing_icon(FOOD_SIZE, inner="#ffffff", outer="#ffcc00")
+            self.image_item = sim.canvas.create_image(x, y, image=self.icon, anchor="nw")
+            self.tooltip = sim.canvas.create_text(
+                x + FOOD_SIZE / 2,
+                y - 10,
+                text=f"{self.charges} left",
+                state="hidden",
+                fill="black",
+                font=("Arial", 8),
+            )
+            sim.canvas.tag_bind(self.image_item, "<Enter>", self._show_tooltip)
+            sim.canvas.tag_bind(self.image_item, "<Leave>", self._hide_tooltip)
+            sim.canvas.tag_bind(self.image_item, "<Button-1>", self._on_click)
+
+    def _show_tooltip(self, _event=None) -> None:
+        if self.tooltip is not None:
+            self.sim.canvas.itemconfigure(self.tooltip, state="normal")
+
+    def _hide_tooltip(self, _event=None) -> None:
+        if self.tooltip is not None:
+            self.sim.canvas.itemconfigure(self.tooltip, state="hidden")
+
+    def _flash(self) -> None:
+        if self.image_item and self.flash_icon:
+            self.sim.canvas.itemconfigure(self.image_item, image=self.flash_icon)
+            if hasattr(self.sim, "master") and hasattr(self.sim.master, "after"):
+                self.sim.master.after(
+                    100, lambda: self.sim.canvas.itemconfigure(self.image_item, image=self.icon)
+                )
+
+    def _on_click(self, _event=None) -> None:
+        self.take_charge()
 
     def take_charge(self) -> bool:
         if self.charges <= 0:
             return False
         self.charges -= 1
+        self._flash()
+        if self.tooltip is not None:
+            self.sim.canvas.itemconfigure(self.tooltip, text=f"{self.charges} left")
         if self.charges <= 0:
             self.sim.canvas.delete(self.item)
+            if self.image_item:
+                self.sim.canvas.delete(self.image_item)
+            if self.tooltip:
+                self.sim.canvas.delete(self.tooltip)
         return True
 
 class BaseAnt:
@@ -140,7 +323,7 @@ class BaseAnt:
             outline="",
             fill="",
         )
-        self.image_id: int = sim.canvas.create_image(
+        self.image_id = sim.canvas.create_image(
             x,
             y,
             image=ANT_SPRITES[0],
@@ -148,6 +331,22 @@ class BaseAnt:
         )
         self.sprite_frames = ANT_SPRITES
         self.frame_index = 0
+
+        self.energy_bar_bg = sim.canvas.create_rectangle(
+            x,
+            y + 4,
+            x + ANT_SIZE,
+            y + 2,
+            fill=PALETTE["bar_bg"],
+        )
+        self.energy_bar = sim.canvas.create_rectangle(
+            x,
+            y + 4,
+            x + ANT_SIZE,
+            y + 2,
+            fill=PALETTE["bar_green"],
+        )
+
         self.carrying_food: bool = False
         self.energy: float = min(ENERGY_MAX, energy)
         self.status: str = "Active"
@@ -203,6 +402,27 @@ class BaseAnt:
 
     def dig(self) -> None:
         self.consume_energy(DIG_ENERGY_COST)
+
+    def energy_color(self) -> str:
+        if self.energy > 60:
+            return PALETTE["bar_green"]
+        if self.energy > 30:
+            return PALETTE["bar_yellow"]
+        return PALETTE["bar_red"]
+
+    def update_energy_bar(self) -> None:
+        x1, y1, x2, _ = self.sim.canvas.coords(self.item)
+        self._set_coords(self.energy_bar_bg, x1, y1 - 4, x2, y1 - 2)
+        width = (self.energy / ENERGY_MAX) * (x2 - x1)
+        self._set_coords(self.energy_bar, x1, y1 - 4, x1 + width, y1 - 2)
+        self.sim.canvas.itemconfigure(self.energy_bar, fill=self.energy_color())
+
+    def _set_coords(self, item: int, x1: float, y1: float, x2: float, y2: float) -> None:
+        try:
+            self.sim.canvas.coords(item, x1, y1, x2, y2)
+        except TypeError:
+            if hasattr(self.sim.canvas, "objects"):
+                self.sim.canvas.objects[item] = [x1, y1, x2, y2]
 
 
     def update(self) -> None:
@@ -426,7 +646,23 @@ class Queen:
 
     def __init__(self, sim: "AntSim", x: int, y: int, model: str | None = None) -> None:
         self.sim = sim
-        self.item: int = sim.canvas.create_oval(x, y, x + 40, y + 20, fill="purple")
+        self.item: int = sim.canvas.create_oval(
+            x, y, x + 40, y + 20, fill=PALETTE["neon_purple"]
+        )
+        self.hunger_bar_bg = sim.canvas.create_rectangle(
+            x,
+            y - 6,
+            x + 40,
+            y - 4,
+            fill=PALETTE["bar_bg"],
+        )
+        self.hunger_bar = sim.canvas.create_rectangle(
+            x,
+            y - 6,
+            x + 40,
+            y - 4,
+            fill=PALETTE["bar_green"],
+        )
         self.hunger: float = 100
         self.spawn_timer: int = 300
         self.model = model or os.getenv("OPENAI_QUEEN_MODEL", "gpt-4-0125-preview")
@@ -435,9 +671,53 @@ class Queen:
         self.fed: int = 0
         self.move_counter: int = 0
 
+        # Animation assets (only if using a real Tk canvas)
+        self.glow_item: int | None = None
+        self.glow_state: int = 0
+        self.expression_item: int | None = None
+
+        if isinstance(sim.canvas, tk.Canvas):
+            self.glow_item = sim.canvas.create_oval(
+                x - 5,
+                y - 10,
+                x + ANT_SIZE + 5,
+                y + ANT_SIZE + 10,
+                outline="yellow",
+                width=2,
+            )
+            sim.canvas.tag_lower(self.glow_item, self.item)
+            self.expression_item = sim.canvas.create_text(
+                x + ANT_SIZE / 2,
+                y - 15,
+                text=":)",
+                font=("Arial", 12),
+            )
+            self.animate_glow()
+
     def feed(self, amount: float = 10) -> None:
         """Increase the queen's hunger level when fed."""
         self.hunger = min(100, self.hunger + amount)
+
+    def hunger_color(self) -> str:
+        if self.hunger > 60:
+            return PALETTE["bar_green"]
+        if self.hunger > 30:
+            return PALETTE["bar_yellow"]
+        return PALETTE["bar_red"]
+
+    def update_hunger_bar(self) -> None:
+        x1, y1, x2, _ = self.sim.canvas.coords(self.item)
+        self._set_coords(self.hunger_bar_bg, x1, y1 - 6, x2, y1 - 4)
+        width = (self.hunger / 100) * (x2 - x1)
+        self._set_coords(self.hunger_bar, x1, y1 - 6, x1 + width, y1 - 4)
+        self.sim.canvas.itemconfigure(self.hunger_bar, fill=self.hunger_color())
+
+    def _set_coords(self, item: int, x1: float, y1: float, x2: float, y2: float) -> None:
+        try:
+            self.sim.canvas.coords(item, x1, y1, x2, y2)
+        except TypeError:
+            if hasattr(self.sim.canvas, "objects"):
+                self.sim.canvas.objects[item] = [x1, y1, x2, y2]
 
     def thought(self) -> str:
         """Return the queen's current thought or mood."""
@@ -522,6 +802,16 @@ class Queen:
                 coords = self.sim.canvas.coords(ant.item)
             self.ant_positions[ant.item] = (coords[0], coords[1])
 
+    def animate_glow(self) -> None:
+        """Pulse the glow outline to give the queen some life."""
+        if self.glow_item is None:
+            return
+        self.glow_state = (self.glow_state + 1) % 2
+        width = 1 if self.glow_state == 0 else 3
+        color = "yellow" if self.glow_state == 0 else "orange"
+        self.sim.canvas.itemconfigure(self.glow_item, width=width, outline=color)
+        self.sim.master.after(200, self.animate_glow)
+
     def update(self) -> None:
         """Handle hunger and periodically spawn new worker ants."""
         self.hunger -= 0.1
@@ -536,11 +826,26 @@ class Queen:
             self.sim.canvas.move(self.item, new_x1 - x1, new_y1 - y1)
 
         if self.hunger < 50:
-            self.sim.canvas.itemconfigure(self.item, fill="red")
+            self.sim.canvas.itemconfigure(self.item, fill=PALETTE["bar_red"])
             self.mad = True
         else:
-            self.sim.canvas.itemconfigure(self.item, fill="purple")
+            self.sim.canvas.itemconfigure(self.item, fill=PALETTE["neon_purple"])
             self.mad = False
+
+        # Update expression graphic
+        if self.mad:
+            expr = ">:("
+        elif self.hunger > 80:
+            expr = ":D"
+        elif self.hunger < 40:
+            expr = ":("
+        else:
+            expr = ":|"
+        if self.expression_item is not None:
+            x1, y1, x2, _ = self.sim.canvas.coords(self.item)
+            cx = (x1 + x2) / 2
+            self.sim.canvas.coords(self.expression_item, cx, y1 - 15)
+            self.sim.canvas.itemconfigure(self.expression_item, text=expr)
 
         if self.mad:
             self.rescue_stuck_ants()
@@ -553,18 +858,37 @@ class Queen:
                 self.sim.ants.append(WorkerAnt(self.sim, int(x), int(y), "blue"))
             self.spawn_timer = 300
 
+        self.update_hunger_bar()
+
 
 class AntSim:
     def __init__(self, master: tk.Tk) -> None:
         self.master = master
-        self.canvas = tk.Canvas(
-            master, width=WINDOW_WIDTH, height=WINDOW_HEIGHT, bg="white"
+        self.frame = tk.Frame(master, bg=PALETTE["frame"])
+        self.frame.pack(side="left", padx=5, pady=5)
+        self.title_label = tk.Label(
+            self.frame,
+            text="Ant Hive Simulation v0.1",
+            bg=PALETTE["frame"],
+            font=HEADER_FONT,
         )
-        self.canvas.pack(side="left")
-        self.sidebar = tk.Text(master, width=30)
+        self.title_label.pack(fill="x")
+        self.canvas = tk.Canvas(
+            self.frame,
+            width=WINDOW_WIDTH,
+            height=WINDOW_HEIGHT,
+            bg=PALETTE["background"],
+            highlightthickness=0,
+        )
+        self.canvas.pack()
+        self.sidebar = tk.Text(master, width=30, bg=PALETTE["sidebar"], font=MONO_FONT)
         self.sidebar.pack(side="right", fill="y")
+        self.sidebar.tag_configure("header", font=HEADER_FONT)
+        self.sidebar.tag_configure("normal", font=MONO_FONT)
         self.sidebar.configure(state="disabled")
-        self.spawn_button = tk.Button(master, text="Food Drop")
+        self.food_icon = create_glowing_icon(20)
+        self.spawn_button = tk.Button(master, image=self.food_icon, text="Food Drop", compound="top", borderwidth=0)
+
         self.spawn_button.pack(side="top")
         self.spawn_button.bind("<ButtonPress-1>", self.start_place_food)
         self.canvas.bind("<Button-1>", self.place_food)
@@ -572,6 +896,8 @@ class AntSim:
 
         self.food_drops: List[FoodDrop] = []
         self.selected_index = 0
+        self.selection_highlight: int | None = None
+        self.selection_tooltip: int | None = None
         self.master.bind("<Tab>", self.cycle_selection)
 
         # Pheromone grid
@@ -588,13 +914,6 @@ class AntSim:
             ry = random.randint(self.terrain.height // 2, self.terrain.height - 1)
             self.terrain.set_cell(rx, ry, TILE_ROCK)
 
-
-        # Pheromone grid
-        self.grid_width = WINDOW_WIDTH // TILE_SIZE
-        self.grid_height = WINDOW_HEIGHT // TILE_SIZE
-        self.pheromones: list[list[float]] = [
-            [0.0 for _ in range(self.grid_height)] for _ in range(self.grid_width)
-        ]
 
         # Entities
         self.food: int = self.canvas.create_rectangle(
@@ -643,11 +962,47 @@ class AntSim:
         all_entities = [self.queen] + self.ants
         self.selected_index = (self.selected_index + 1) % len(all_entities)
         sel = all_entities[self.selected_index]
+
+        if self.selection_highlight:
+            self.canvas.delete(self.selection_highlight)
+            self.selection_highlight = None
+        if self.selection_tooltip:
+            self.canvas.delete(self.selection_tooltip)
+            self.selection_tooltip = None
+
         if sel is self.queen:
             thought = self.queen.thought()
             self.master.title(f"Queen: {thought}")
         else:
             self.master.title(f"Selected: {sel.role}")
+
+        x1, y1, x2, y2 = self.canvas.coords(sel.item)
+        self.selection_highlight = self.canvas.create_rectangle(
+            x1 - 2,
+            y1 - 2,
+            x2 + 2,
+            y2 + 2,
+            outline="cyan",
+            width=2,
+        )
+        cx = (x1 + x2) / 2
+        label = "Queen" if sel is self.queen else sel.role
+        self.selection_tooltip = self.canvas.create_text(
+            cx,
+            y1 - 10,
+            text=label,
+            fill="cyan",
+            font=("Arial", 10),
+        )
+        self.master.after(1000, self.clear_selection_marks)
+
+    def clear_selection_marks(self) -> None:
+        if self.selection_highlight:
+            self.canvas.delete(self.selection_highlight)
+            self.selection_highlight = None
+        if self.selection_tooltip:
+            self.canvas.delete(self.selection_tooltip)
+            self.selection_tooltip = None
 
     def deposit_pheromone(self, x: float, y: float, amount: float) -> None:
         gx = int(x) // TILE_SIZE
@@ -695,23 +1050,26 @@ class AntSim:
         )
         self.sidebar.configure(state="normal")
         self.sidebar.delete("1.0", tk.END)
-        self.sidebar.insert(tk.END, "Ant Stats:\n")
+        self.sidebar.insert(tk.END, "Ant Stats:\n", "header")
         for line in lines:
-            self.sidebar.insert(tk.END, line + "\n")
-        self.sidebar.insert(tk.END, "\nColony Stats:\n" + metrics)
+            self.sidebar.image_create(tk.END, image=self.ant_icon)
+            self.sidebar.insert(tk.END, " " + line + "\n", "normal")
+        self.sidebar.insert(tk.END, "\nColony Stats:\n", "header")
+        self.sidebar.insert(tk.END, metrics, "normal")
         all_entities = [self.queen] + self.ants
         sel = all_entities[self.selected_index]
         if sel is self.queen:
             thought = self.queen.thought()
-            self.sidebar.insert(tk.END, f"\nQueen Thought: {thought}")
+            self.sidebar.insert(tk.END, f"\nQueen Thought: {thought}", "normal")
         else:
-            self.sidebar.insert(tk.END, f"\nSelected: {sel.role}")
+            self.sidebar.insert(tk.END, f"\nSelected: {sel.role}", "normal")
         self.sidebar.configure(state="disabled")
         self.master.after(1000, self.update_sidebar)
 
     def update(self) -> None:
         for ant in self.ants:
             ant.update()
+            ant.update_energy_bar()
 
         self.queen.update()
         for drop in self.food_drops[:]:
@@ -725,6 +1083,6 @@ class AntSim:
 
 if __name__ == "__main__":
     root = tk.Tk()
-    root.title("AI Ant Hive")
+    root.title("Ant Hive Simulation v0.1")
     app = AntSim(root)
     root.mainloop()
