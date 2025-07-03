@@ -29,7 +29,9 @@ from ..ai_interface import chat_completion
 
 
 class BaseAnt:
-    def __init__(self, sim: "AntSim", x: int, y: int, color: str = "black", energy: int = 100) -> None:
+    def __init__(
+        self, sim: "AntSim", x: int, y: int, color: str = "black", energy: int = 100
+    ) -> None:
         self.sim = sim
         self.color = color
         self.item: int = sim.canvas.create_rectangle(
@@ -67,6 +69,7 @@ class BaseAnt:
         self.carrying_food: bool = False
         self.energy: float = min(ENERGY_MAX, energy)
         self.status: str = "Active"
+        self.command: str | None = None
         self.role: str = self.__class__.__name__
         self.ant_id: int = self.item
         self.terrain: Terrain | None = getattr(sim, "terrain", None)
@@ -131,7 +134,9 @@ class BaseAnt:
         self._set_coords(self.energy_bar, x1, y1 - 4, x1 + width, y1 - 2)
         self.sim.canvas.itemconfigure(self.energy_bar, fill=self.energy_color())
 
-    def _set_coords(self, item: int, x1: float, y1: float, x2: float, y2: float) -> None:
+    def _set_coords(
+        self, item: int, x1: float, y1: float, x2: float, y2: float
+    ) -> None:
         try:
             self.sim.canvas.coords(item, x1, y1, x2, y2)
         except TypeError:
@@ -149,20 +154,31 @@ class BaseAnt:
         coords = self.sim.canvas.coords(self.item)
         self.last_pos = (coords[0], coords[1])
         self.frame_index = (self.frame_index + 1) % len(self.sprite_frames)
-        self.sim.canvas.itemconfigure(self.image_id, image=self.sprite_frames[self.frame_index])
+        self.sim.canvas.itemconfigure(
+            self.image_id, image=self.sprite_frames[self.frame_index]
+        )
 
 
 class AIBaseAnt(BaseAnt):
     """Ant that decides movement using the OpenAI API."""
 
-    def __init__(self, sim: "AntSim", x: int, y: int, color: str = "black", model: str | None = None) -> None:
+    def __init__(
+        self,
+        sim: "AntSim",
+        x: int,
+        y: int,
+        color: str = "black",
+        model: str | None = None,
+    ) -> None:
         super().__init__(sim, x, y, color)
         self.model = model or os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
 
     def get_ai_move(self) -> Tuple[int, int]:
         key = os.getenv("OPENAI_API_KEY")
         if not key:
-            return random.choice([-MOVE_STEP, 0, MOVE_STEP]), random.choice([-MOVE_STEP, 0, MOVE_STEP])
+            return random.choice([-MOVE_STEP, 0, MOVE_STEP]), random.choice(
+                [-MOVE_STEP, 0, MOVE_STEP]
+            )
         state = {
             "ant": self.sim.canvas.coords(self.item),
             "food": self.sim.canvas.coords(self.sim.food),
