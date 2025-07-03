@@ -14,6 +14,7 @@ from ..constants import (
     MOVE_STEP,
     WINDOW_WIDTH,
     WINDOW_HEIGHT,
+    PALETTE,
 )
 from ..sprites import ANT_SPRITES
 from ..terrain import (
@@ -53,14 +54,14 @@ class BaseAnt:
             y + 4,
             x + ANT_SIZE,
             y + 2,
-            fill=self.sim.PALETTE["bar_bg"] if hasattr(self.sim, "PALETTE") else "#5a462e",
+            fill=PALETTE["bar_bg"],
         )
         self.energy_bar = sim.canvas.create_rectangle(
             x,
             y + 4,
             x + ANT_SIZE,
             y + 2,
-            fill=self.sim.PALETTE.get("bar_green", "#4caf50") if hasattr(self.sim, "PALETTE") else "#4caf50",
+            fill=PALETTE["bar_green"],
         )
 
         self.carrying_food: bool = False
@@ -118,10 +119,10 @@ class BaseAnt:
 
     def energy_color(self) -> str:
         if self.energy > 60:
-            return self.sim.PALETTE.get("bar_green", "#4caf50")
+            return PALETTE.get("bar_green", "#4caf50")
         if self.energy > 30:
-            return self.sim.PALETTE.get("bar_yellow", "#c4b000")
-        return self.sim.PALETTE.get("bar_red", "#8b0000")
+            return PALETTE.get("bar_yellow", "#c4b000")
+        return PALETTE.get("bar_red", "#8b0000")
 
     def update_energy_bar(self) -> None:
         x1, y1, x2, _ = self.sim.canvas.coords(self.item)
