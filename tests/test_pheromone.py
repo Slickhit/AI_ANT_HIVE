@@ -24,14 +24,27 @@ class FakeCanvas:
         self.objects[item_id] = coords[:]
         return item_id
 
-    def create_oval(self, x1, y1, x2, y2, fill=None):
+    def create_oval(self, x1, y1, x2, y2, fill=None, **kwargs):
         return self._create_item([x1, y1, x2, y2])
 
-    def create_rectangle(self, x1, y1, x2, y2, fill=None):
+    def create_rectangle(self, x1, y1, x2, y2, fill=None, **kwargs):
         return self._create_item([x1, y1, x2, y2])
 
     def create_text(self, *args, **kwargs):
         return self._create_item([0, 0, 0, 0])
+
+    def create_image(self, x, y, image=None, anchor="nw"):
+        return self._create_item([x, y, x + ANT_SIZE, y + ANT_SIZE])
+
+    def create_line(self, x1, y1, x2, y2, **kwargs):
+        return self._create_item([x1, y1, x2, y2])
+
+    def delete(self, item_id):
+        self.objects.pop(item_id, None)
+
+    def after(self, delay, func=None):
+        if func:
+            func()
 
     def move(self, item_id, dx, dy):
         x1, y1, x2, y2 = self.objects[item_id]
