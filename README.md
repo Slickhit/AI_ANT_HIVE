@@ -32,3 +32,7 @@ The `tests` folder contains a small test suite. Run it with:
 python -m pytest
 ```
 
+## License
+
+This project is licensed under the [MIT License](LICENSE).
+
