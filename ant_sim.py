@@ -953,6 +953,8 @@ class AntSim:
         self.sidebar.tag_configure("normal", font=MONO_FONT)
         self.sidebar.configure(state="disabled")
         self.food_icon = create_glowing_icon(20)
+        # Icon used when rendering ant stats in the sidebar
+        self.ant_icon = create_glowing_icon(ANT_SIZE)
         self.spawn_button = tk.Button(master, image=self.food_icon, text="Food Drop", compound="top", borderwidth=0)
 
         self.spawn_button.pack(side="top")
