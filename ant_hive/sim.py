@@ -4,7 +4,14 @@ from typing import List
 import time
 
 
-from .constants import WINDOW_WIDTH, WINDOW_HEIGHT, PALETTE, TILE_SIZE, PHEROMONE_DECAY
+from .constants import (
+    WINDOW_WIDTH,
+    WINDOW_HEIGHT,
+    PALETTE,
+    TILE_SIZE,
+    PHEROMONE_DECAY,
+    MONO_FONT,
+)
 from .terrain import Terrain, TILE_ROCK
 from .sprites import create_glowing_icon
 from .entities.base_ant import BaseAnt
@@ -98,6 +105,25 @@ class AntSim:
             "<Configure>",
             lambda e: self.ant_canvas.itemconfigure(self.ant_window, width=e.width)
         )
+
+        # Panel for overall colony statistics
+        self.colony_panel = tk.Frame(self.sidebar_frame, bg="#f9ebcc")
+        self.colony_panel.pack(side="top", fill="x", pady=5)
+        tk.Label(
+            self.colony_panel,
+            text="Colony Stats:",
+            font=("Arial", 10, "bold"),
+            bg="#f9ebcc",
+            anchor="w",
+        ).pack(fill="x")
+        self.colony_stats_label = tk.Label(
+            self.colony_panel,
+            bg="#f9ebcc",
+            anchor="w",
+            justify="left",
+            font=MONO_FONT,
+        )
+        self.colony_stats_label.pack(fill="x")
         self.spawn_button.bind("<ButtonPress-1>", self.start_place_food)
         self.canvas.bind("<Button-1>", self.place_food)
         self.placing_food = False
@@ -158,6 +184,16 @@ class AntSim:
             if ant_id not in active_ids:
                 self.ant_labels[ant_id].destroy()
                 del self.ant_labels[ant_id]
+
+    def refresh_colony_stats(self) -> None:
+        stats = (
+            f"Food: {self.food_collected}\n"
+            f"Queen Hunger: {int(self.queen.hunger)}\n"
+            f"Ants: {len(self.ants)}\n"
+            f"Eggs: {len(self.eggs)}\n"
+            f"Queen Thought: {self.queen.thought()}"
+        )
+        self.colony_stats_label.configure(text=stats)
 
 
     def start_place_food(self, _event) -> None:
@@ -220,4 +256,5 @@ class AntSim:
         )
         self.stats_label.configure(text=stats)
         self.refresh_ant_stats()
+        self.refresh_colony_stats()
         self.master.after(100, self.update)
