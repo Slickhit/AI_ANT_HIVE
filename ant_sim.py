@@ -13,6 +13,7 @@ openai.api_key = os.getenv("OPENAI_API_KEY", "")
 # Constants
 WINDOW_WIDTH = 400
 WINDOW_HEIGHT = 600
+SIDEBAR_WIDTH = 150
 ANT_SIZE = 10
 FOOD_SIZE = 8
 MOVE_STEP = 5
@@ -21,35 +22,133 @@ PHEROMONE_DECAY = 0.01
 SCOUT_PHEROMONE_AMOUNT = 1.0
 
 
+# Terrain constants
+TILE_SIZE = 20
+TILE_SAND = "sand"
+TILE_TUNNEL = "tunnel"
+TILE_ROCK = "rock"
+TILE_COLLAPSED = "collapsed"
+
+class Terrain:
+    """Simple 2D grid representing the underground."""
+
+    colors = {
+        TILE_SAND: "#c2b280",
+        TILE_TUNNEL: "#806517",
+        TILE_ROCK: "#7f7f7f",
+        TILE_COLLAPSED: "black",
+    }
+
+    def __init__(self, width: int, height: int, canvas: tk.Canvas) -> None:
+        self.width = width
+        self.height = height
+        self.canvas = canvas
+        self.grid: list[list[str]] = [
+            [TILE_SAND for _ in range(height)] for _ in range(width)
+        ]
+        self.rects: list[list[int]] = [[0] * height for _ in range(width)]
+        self._render()
+
+    def _render(self) -> None:
+        for x in range(self.width):
+            for y in range(self.height):
+                state = self.grid[x][y]
+                rect = self.canvas.create_rectangle(
+                    x * TILE_SIZE,
+                    y * TILE_SIZE,
+                    (x + 1) * TILE_SIZE,
+                    (y + 1) * TILE_SIZE,
+                    fill=self.colors[state],
+                )
+                self.rects[x][y] = rect
+
+    def get_cell(self, x: int, y: int) -> str:
+        if x < 0 or y < 0 or x >= self.width or y >= self.height:
+            return TILE_ROCK
+        return self.grid[x][y]
+
+    def set_cell(self, x: int, y: int, state: str) -> None:
+        if 0 <= x < self.width and 0 <= y < self.height:
+            self.grid[x][y] = state
+            self.canvas.itemconfigure(self.rects[x][y], fill=self.colors[state])
+
+# Energy constants
+ENERGY_MAX = 100
+MOVE_ENERGY_COST = 1
+DIG_ENERGY_COST = 2
+REST_ENERGY_GAIN = 5
+
 class BaseAnt:
     """Base class for all ants."""
 
-    def __init__(self, sim: "AntSim", x: int, y: int, color: str = "black") -> None:
+    def __init__(
+        self, sim: "AntSim", x: int, y: int, color: str = "black", energy: int = 100
+    ) -> None:
         self.sim = sim
         self.item: int = sim.canvas.create_oval(
             x, y, x + ANT_SIZE, y + ANT_SIZE, fill=color
         )
         self.carrying_food: bool = False
-        self.last_pos: Tuple[float, float] = (float(x), float(y))
+              self.energy: float = ENERGY_MAX
+        self.status: str = "Active"
+        self.role: str = self.__class__.__name__
+        self.ant_id: int = self.item
+        self.terrain: Terrain | None = getattr(sim, "terrain", None)
+
+
+
+    def attempt_move(self, dx: int, dy: int) -> None:
+        if self.energy <= 0:
+            return
+        x1, y1, _, _ = self.sim.canvas.coords(self.item)
+        new_x1 = max(0, min(WINDOW_WIDTH - ANT_SIZE, x1 + dx))
+        new_y1 = max(0, min(WINDOW_HEIGHT - ANT_SIZE, y1 + dy))
+        cost = 1
+        if self.terrain:
+            tile_x = int((new_x1 + ANT_SIZE / 2) // TILE_SIZE)
+            tile_y = int((new_y1 + ANT_SIZE / 2) // TILE_SIZE)
+            tile = self.terrain.get_cell(tile_x, tile_y)
+            if tile in (TILE_ROCK, TILE_COLLAPSED):
+                return
+            if tile == TILE_SAND:
+                self.terrain.set_cell(tile_x, tile_y, TILE_TUNNEL)
+                cost = 2
+        if self.energy < cost:
+            return
+        self.energy -= cost
+        self.sim.canvas.move(self.item, new_x1 - x1, new_y1 - y1)
+        self.consume_energy(MOVE_ENERGY_COST)
 
     def move_random(self) -> None:
         dx = random.choice([-MOVE_STEP, 0, MOVE_STEP])
         dy = random.choice([-MOVE_STEP, 0, MOVE_STEP])
-        x1, y1, _, _ = self.sim.canvas.coords(self.item)
-        new_x1 = max(0, min(WINDOW_WIDTH - ANT_SIZE, x1 + dx))
-        new_y1 = max(0, min(WINDOW_HEIGHT - ANT_SIZE, y1 + dy))
-        self.sim.canvas.move(self.item, new_x1 - x1, new_y1 - y1)
+        self.attempt_move(dx, dy)
 
     def move_towards(self, target: int) -> None:
         x1, y1, _, _ = self.sim.canvas.coords(self.item)
         tx1, ty1, _, _ = self.sim.canvas.coords(target)
         dx = MOVE_STEP if x1 < tx1 else -MOVE_STEP if x1 > tx1 else 0
         dy = MOVE_STEP if y1 < ty1 else -MOVE_STEP if y1 > ty1 else 0
-        new_x1 = max(0, min(WINDOW_WIDTH - ANT_SIZE, x1 + dx))
-        new_y1 = max(0, min(WINDOW_HEIGHT - ANT_SIZE, y1 + dy))
-        self.sim.canvas.move(self.item, new_x1 - x1, new_y1 - y1)
+        self.attempt_move(dx, dy)
+
+    def consume_energy(self, amount: int) -> None:
+        self.energy = max(0, self.energy - amount)
+
+    def rest(self) -> None:
+        self.energy = min(ENERGY_MAX, self.energy + REST_ENERGY_GAIN)
+
+    def dig(self) -> None:
+        self.consume_energy(DIG_ENERGY_COST)
+
 
     def update(self) -> None:
+        if self.energy <= 0:
+        if self.energy <= 0:
+            self.status = "Tired"
+            self.energy = max(0, self.energy - 0.1)
+            self.rest()
+            return
+
         self.move_random()
         coords = self.sim.canvas.coords(self.item)
         self.last_pos = (coords[0], coords[1])
@@ -58,14 +157,23 @@ class BaseAnt:
 class AIBaseAnt(BaseAnt):
     """Ant that decides movement using the OpenAI API."""
 
-    def __init__(self, sim: "AntSim", x: int, y: int, color: str = "black", model: str | None = None) -> None:
+    def __init__(
+        self,
+        sim: "AntSim",
+        x: int,
+        y: int,
+        color: str = "black",
+        model: str | None = None,
+    ) -> None:
         super().__init__(sim, x, y, color)
         self.model = model or os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
 
     def get_ai_move(self) -> Tuple[int, int]:
         key = os.getenv("OPENAI_API_KEY")
         if not key:
-            return random.choice([-MOVE_STEP, 0, MOVE_STEP]), random.choice([-MOVE_STEP, 0, MOVE_STEP])
+            return random.choice([-MOVE_STEP, 0, MOVE_STEP]), random.choice(
+                [-MOVE_STEP, 0, MOVE_STEP]
+            )
         openai.api_key = key
 
         state = {
@@ -76,29 +184,42 @@ class AIBaseAnt(BaseAnt):
         messages = [
             {
                 "role": "system",
-                "content": "You control an ant in a grid. Respond with JSON like {\"dx\":5,\"dy\":0}."
+                "content": 'You control an ant in a grid. Respond with JSON like {"dx":5,"dy":0}.',
             },
             {"role": "user", "content": json.dumps(state)},
         ]
 
         try:
-            resp = openai.ChatCompletion.create(model=self.model, messages=messages, max_tokens=10)
+            resp = openai.ChatCompletion.create(
+                model=self.model, messages=messages, max_tokens=10
+            )
             data = json.loads(resp.choices[0].message["content"])
             return int(data.get("dx", 0)), int(data.get("dy", 0))
         except Exception:
             return 0, 0
 
     def update(self) -> None:
+        if self.energy <= 0:
+            self.rest()
+            coords = self.sim.canvas.coords(self.item)
+            self.last_pos = (coords[0], coords[1])
+            return
         dx, dy = self.get_ai_move()
-        self.sim.canvas.move(self.item, dx, dy)
+        self.attempt_move(dx, dy)
         coords = self.sim.canvas.coords(self.item)
         self.last_pos = (coords[0], coords[1])
+
 
 
 class WorkerAnt(BaseAnt):
     """Ant focused on collecting food and feeding the queen."""
 
     def update(self) -> None:
+        if self.energy <= 0:
+            self.rest()
+            coords = self.sim.canvas.coords(self.item)
+            self.last_pos = (coords[0], coords[1])
+            return
         if not self.carrying_food:
             # Follow pheromones if present, otherwise head toward food
             x1, y1, _, _ = self.sim.canvas.coords(self.item)
@@ -135,12 +256,38 @@ class WorkerAnt(BaseAnt):
 
 
 class ScoutAnt(BaseAnt):
-    """Ant that explores randomly, remembering its last position."""
+class ScoutAnt(BaseAnt):
+    """Ant that explores randomly, remembering visited positions."""
+
+    def __init__(self, sim: "AntSim", x: int, y: int, color: str = "black") -> None:
+        super().__init__(sim, x, y, color)
+        self.visited: set[tuple[float, float]] = {(float(x), float(y))}
+
     def update(self) -> None:
-        self.move_random()
+        x1, y1, _, _ = self.sim.canvas.coords(self.item)
+
+        # Consider moves that lead to unexplored positions
+        moves = []
+        for dx in (-MOVE_STEP, 0, MOVE_STEP):
+            for dy in (-MOVE_STEP, 0, MOVE_STEP):
+                if dx == 0 and dy == 0:
+                    continue
+                new_x1 = max(0, min(WINDOW_WIDTH - ANT_SIZE, x1 + dx))
+                new_y1 = max(0, min(WINDOW_HEIGHT - ANT_SIZE, y1 + dy))
+                if (new_x1, new_y1) not in self.visited:
+                    moves.append((dx, dy, new_x1, new_y1))
+
+        if moves:
+            dx, dy, new_x1, new_y1 = random.choice(moves)
+            self.sim.canvas.move(self.item, new_x1 - x1, new_y1 - y1)
+        else:
+            self.move_random()
+
         coords = self.sim.canvas.coords(self.item)
         self.sim.deposit_pheromone(coords[0], coords[1], SCOUT_PHEROMONE_AMOUNT)
         self.last_pos = (coords[0], coords[1])
+        self.visited.add(self.last_pos)
+
 
 
 class Queen:
@@ -162,13 +309,21 @@ class Queen:
 
     def decide_spawn(self) -> bool:
         key = os.getenv("OPENAI_API_KEY")
+        counts: dict[str, int] = {}
+        for ant in self.sim.ants:
+            role = getattr(ant, "role", ant.__class__.__name__)
+            counts[role] = counts.get(role, 0) + 1
         if not key:
-            return True
+            # Simple heuristic when offline: spawn if food reserves exceed number
+            # of workers and queen is reasonably fed.
+            worker_count = counts.get("WorkerAnt", 0)
+            return self.sim.food_collected > worker_count and self.hunger > 30
         openai.api_key = key
         prompt = {
             "hunger": self.hunger,
             "ants": len(self.sim.ants),
             "food": self.sim.food_collected,
+            "population": counts,
         }
         try:
             resp = openai.ChatCompletion.create(
@@ -231,7 +386,25 @@ class AntSim:
         self.canvas = tk.Canvas(
             master, width=WINDOW_WIDTH, height=WINDOW_HEIGHT, bg="white"
         )
-        self.canvas.pack()
+        self.canvas.pack(side="left")
+        self.sidebar = tk.Text(master, width=30)
+        self.sidebar.pack(side="right", fill="y")
+        self.sidebar.configure(state="disabled")
+
+        # Pheromone grid
+        self.grid_width = WINDOW_WIDTH // TILE_SIZE
+        self.grid_height = WINDOW_HEIGHT // TILE_SIZE
+        self.pheromones: list[list[float]] = [
+            [0.0 for _ in range(self.grid_height)] for _ in range(self.grid_width)
+        ]
+
+        # Terrain
+        self.terrain = Terrain(self.grid_width, self.grid_height, self.canvas)
+        for _ in range(30):
+            rx = random.randint(0, self.terrain.width - 1)
+            ry = random.randint(self.terrain.height // 2, self.terrain.height - 1)
+            self.terrain.set_cell(rx, ry, TILE_ROCK)
+
 
         # Pheromone grid
         self.grid_width = WINDOW_WIDTH // TILE_SIZE
@@ -251,6 +424,8 @@ class AntSim:
             WorkerAnt(self, 195, 295, "blue"),
             WorkerAnt(self, 215, 295, "red"),
             ScoutAnt(self, 235, 295, "black"),
+            SoldierAnt(self, 255, 295, "orange"),
+            NurseAnt(self, 275, 295, "pink"),
         ]
 
         # Stats
@@ -259,6 +434,8 @@ class AntSim:
         self.stats_text: int = self.canvas.create_text(
             5, 5, anchor="nw", fill="blue", font=("Arial", 10)
         )
+
+        self.update_sidebar()
 
         # Kick off loop
         self.update()
@@ -299,6 +476,25 @@ class AntSim:
             f"Fed to Queen: {self.queen_fed}\n"
             f"Ants Active: {len(self.ants)}"
         )
+
+    def update_sidebar(self) -> None:
+        lines = [
+            f"ID {ant.ant_id} | {ant.role} | E:{int(ant.energy)} | {ant.status}"
+            for ant in self.ants
+        ]
+        metrics = (
+            f"Food: {self.food_collected}\n"
+            f"Queen Hunger: {int(self.queen.hunger)}\n"
+            f"Ants: {len(self.ants)}"
+        )
+        self.sidebar.configure(state="normal")
+        self.sidebar.delete("1.0", tk.END)
+        self.sidebar.insert(tk.END, "Ant Stats:\n")
+        for line in lines:
+            self.sidebar.insert(tk.END, line + "\n")
+        self.sidebar.insert(tk.END, "\nColony Stats:\n" + metrics)
+        self.sidebar.configure(state="disabled")
+        self.master.after(1000, self.update_sidebar)
 
     def update(self) -> None:
         for ant in self.ants:
