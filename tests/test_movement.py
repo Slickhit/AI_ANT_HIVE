@@ -1,10 +1,14 @@
-import os, sys
+import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 import random
 
-import pytest
-
-from ant_sim import BaseAnt, MOVE_STEP, ANT_SIZE, WINDOW_WIDTH, WINDOW_HEIGHT
+from ant_sim import BaseAnt
+from ant_sim import MOVE_STEP
+from ant_sim import ANT_SIZE
+from ant_sim import WINDOW_WIDTH
+from ant_sim import WINDOW_HEIGHT
 
 
 class FakeCanvas:

@@ -1,11 +1,12 @@
-import os, sys
+import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 import json
 from unittest.mock import MagicMock, patch
 
 from ant_sim import Queen, WorkerAnt, AIBaseAnt, FOOD_SIZE, ANT_SIZE
-
 
 class FakeCanvas:
     def __init__(self):
@@ -48,6 +49,12 @@ class FakeSim:
         self.queen_fed = 0
         self.queen = Queen(self, 0, 0)
 
+    def move_food(self):
+        pass
+
+    def get_coords(self, item):
+        return self.canvas.coords(item)
+
     def get_coords(self, item):
         return self.canvas.coords(item)
 
@@ -77,6 +84,25 @@ def test_worker_ant_feeding_queen():
     assert not worker.carrying_food
     assert sim.queen.hunger > 40
 
+def test_queen_creation():
+    sim = FakeSim()
+    assert sim.queen.hunger == 100
+    assert sim.queen.spawn_timer == 300
+
+def test_worker_feeds_queen():
+    sim = FakeSim()
+    worker = WorkerAnt(sim, 0, 0)
+    worker.carrying_food = True
+    sim.ants.append(worker)
+    sim.queen.hunger = 50
+    worker.update()
+    assert sim.queen.hunger == 60
+    assert sim.queen.fed == 1
+    assert not worker.carrying_food
+
+def test_queen_spawns_new_worker():
+    sim = FakeSim()
+    # Add actual test logic here if needed
 
 @patch("ant_sim.openai.ChatCompletion.create")
 def test_ai_base_ant_moves_with_openai(mock_create):
@@ -89,11 +115,12 @@ def test_ai_base_ant_moves_with_openai(mock_create):
     assert coords[0] == 5 and coords[1] == -5
     mock_create.assert_called_once()
 
-
 @patch("ant_sim.openai.ChatCompletion.create")
 def test_queen_uses_openai_for_spawn(mock_create):
     os.environ["OPENAI_API_KEY"] = "test"
     mock_create.return_value = MagicMock(choices=[MagicMock(message={"content": "yes"})])
+    sim = FakeSim()
+
     sim = FakeSim()
     sim.queen.spawn_timer = 0
     sim.queen.update()
