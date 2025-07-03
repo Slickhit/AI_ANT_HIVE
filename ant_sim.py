@@ -961,9 +961,13 @@ class AntSim:
         self.food_icon = create_glowing_icon(20)
         # Icon used when rendering ant stats in the sidebar
         self.ant_icon = create_glowing_icon(ANT_SIZE)
-        self.spawn_button = tk.Button(master, image=self.food_icon, text="Food Drop", compound="top", borderwidth=0)
+        self.spawn_button = tk.Button(
+            master, image=self.food_icon, text="Food Drop", compound="top", borderwidth=0
+        )
 
         self.spawn_button.pack(side="top")
+        self.stats_label = tk.Label(master, bg=PALETTE["frame"], font=("Arial", 10))
+        self.stats_label.pack(side="top")
         self.spawn_button.bind("<ButtonPress-1>", self.start_place_food)
         self.canvas.bind("<Button-1>", self.place_food)
         self.placing_food = False
@@ -1008,9 +1012,6 @@ class AntSim:
         # Stats
         self.food_collected: int = 0
         self.queen_fed: int = 0
-        self.stats_text: int = self.canvas.create_text(
-            5, 5, anchor="nw", fill="blue", font=("Arial", 10)
-        )
 
         self.update_sidebar()
 
@@ -1157,7 +1158,7 @@ class AntSim:
                 self.food_drops.remove(drop)
         self.decay_pheromones()
 
-        self.canvas.itemconfigure(self.stats_text, text=self.get_stats())
+        self.stats_label.configure(text=self.get_stats())
         self.master.after(100, self.update)
 
 
