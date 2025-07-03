@@ -31,6 +31,13 @@ small statistics label continuously updates with collected food, how much has
 been fed to the queen, the number of active ants, the current egg count and
 how many predators are present.
 
+### Day-Night Cycle
+
+The world slowly transitions between day and night over a 60‑second cycle.
+A small icon in the top-left corner shows the sun or moon along with the
+current day number. Nighttime applies a subtle blue tint without hiding the
+scene so the ants remain fully visible.
+
 ## Development
 
 The `tests` folder contains a small test suite. Run it with:

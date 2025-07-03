@@ -50,7 +50,11 @@ class AntSim:
             state="hidden",
         )
         self.status_icon = self.canvas.create_text(
-            5, 5, text="\u2600\ufe0f", anchor="nw", font=("Arial", 16)
+            5,
+            5,
+            text="\u2600\ufe0f Day 1",
+            anchor="nw",
+            font=("Arial", 16),
         )
         self.canvas.tag_raise(self.overlay)
         self.canvas.tag_raise(self.status_icon)
@@ -98,12 +102,14 @@ class AntSim:
 
         self.ant_list.bind(
             "<Configure>",
-            lambda e: self.ant_canvas.configure(scrollregion=self.ant_canvas.bbox("all"))
+            lambda e: self.ant_canvas.configure(
+                scrollregion=self.ant_canvas.bbox("all")
+            ),
         )
 
         self.ant_canvas.bind(
             "<Configure>",
-            lambda e: self.ant_canvas.itemconfigure(self.ant_window, width=e.width)
+            lambda e: self.ant_canvas.itemconfigure(self.ant_window, width=e.width),
         )
 
         # Panel for overall colony statistics
@@ -160,11 +166,31 @@ class AntSim:
         self.ant_labels: dict[int, tk.Label] = {}
         self.update()
 
+    def update_lighting(self) -> None:
+        """Update overlay brightness and day/night icon."""
+        t = time.time() - self.start_time
+        brightness = brightness_at(t)
+
+        if brightness >= 0.999:
+            # Daytime without overlay
+            self.canvas.itemconfigure(self.overlay, state="hidden")
+        else:
+            self.canvas.itemconfigure(
+                self.overlay,
+                state="normal",
+                stipple=stipple_from_brightness(brightness),
+            )
+
+        cycle = t % 60.0
+        icon = "\u2600\ufe0f" if cycle < 30.0 else "\U0001f319"
+        day = int(t // 60.0) + 1
+        self.canvas.itemconfigure(self.status_icon, text=f"{icon} Day {day}")
+
     def refresh_ant_stats(self) -> None:
         active_ids = set()
         for ant in self.ants:
             active_ids.add(ant.ant_id)
-            text = f"\u25A0 ID {ant.ant_id:04d} | {ant.role} | E:{int(ant.energy)} | {ant.status}"
+            text = f"\u25a0 ID {ant.ant_id:04d} | {ant.role} | E:{int(ant.energy)} | {ant.status}"
             label = self.ant_labels.get(ant.ant_id)
             if label is None:
                 label = tk.Label(
@@ -194,7 +220,6 @@ class AntSim:
             f"Queen Thought: {self.queen.thought()}"
         )
         self.colony_stats_label.configure(text=stats)
-
 
     def start_place_food(self, _event) -> None:
         self.placing_food = True
@@ -235,6 +260,7 @@ class AntSim:
         return ax1 < bx2 and ax2 > bx1 and ay1 < by2 and ay2 > by1
 
     def update(self) -> None:
+        self.update_lighting()
         for ant in self.ants:
             ant.update()
             ant.update_energy_bar()
