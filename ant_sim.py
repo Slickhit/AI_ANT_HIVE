@@ -8,9 +8,24 @@ from typing import List, Tuple
 
 import openai
 
+# Constants
+PALETTE = {
+    "background": "#f4ecd8",
+    "sidebar": "#eee1c6",
+    "frame": "#d2b48c",
+    "bar_bg": "#5a462e",
+    "bar_green": "#4caf50",
+    "bar_yellow": "#c4b000",
+    "bar_red": "#8b0000",
+    "neon_purple": "#d400ff",
+}
+
+MONO_FONT = ("JetBrains Mono", 10)
+HEADER_FONT = ("JetBrains Mono", 10, "bold underline")
+
 openai.api_key = os.getenv("OPENAI_API_KEY", "")
 
-# Constants
+# Window constants
 WINDOW_WIDTH = 400
 WINDOW_HEIGHT = 600
 SIDEBAR_WIDTH = 150
@@ -48,6 +63,23 @@ TILE_TUNNEL = "tunnel"
 TILE_ROCK = "rock"
 TILE_COLLAPSED = "collapsed"
 
+# Small base64 encoded textures to avoid binary files in the repository
+SAND_TEXTURE = (
+    "iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAARklEQVR4nO3QMRHAMBADwctjEPRg"
+    "MgSjEAenyJiArfLVqdninjneZZs9Sdz8SmKSqCRm+wdTGEAlMeiGCbwbdsOD3w3v8Q8txS8qFa7u"
+    "XQAAAABJRU5ErkJggg=="
+)
+TUNNEL_TEXTURE = (
+    "iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAARklEQVR4nO3QMRHAMBADwctjEIsg"
+    "NA/DFAenyJiArfLVqdninjneZZs9Sdz8SmKSqCRm+wdTGEAlMeiGCbwbdsOD3w3v8Q8OIi4y+xWE"
+    "tQAAAABJRU5ErkJggg=="
+)
+ROCK_TEXTURE = (
+    "iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAAQklEQVR4nO3QsRHAQAwCwbNqoHO1"
+    "SQ/+4McNWIQiI9ngnu5+bfNNEpNfSUwSlcRsXzCFAVQSg22YwLfhNvzxt+EcPz04LrP+YyCNAAAA"
+    "AElFTkSuQmCC"
+)
+
 class Terrain:
     """Simple 2D grid representing the underground."""
 
@@ -58,28 +90,75 @@ class Terrain:
         TILE_COLLAPSED: "black",
     }
 
+    texture_data = {
+        TILE_SAND: SAND_TEXTURE,
+        TILE_TUNNEL: TUNNEL_TEXTURE,
+        TILE_ROCK: ROCK_TEXTURE,
+    }
+
     def __init__(self, width: int, height: int, canvas: tk.Canvas) -> None:
         self.width = width
         self.height = height
         self.canvas = canvas
+        self.images: dict[str, tk.PhotoImage | None] = {}
+        for key, data in self.texture_data.items():
+            try:
+                self.images[key] = tk.PhotoImage(data=data)
+            except Exception:
+                # When running headless tests there may be no Tk instance
+                self.images[key] = None
         self.grid: list[list[str]] = [
             [TILE_SAND for _ in range(height)] for _ in range(width)
         ]
         self.rects: list[list[int]] = [[0] * height for _ in range(width)]
+        self.shades: list[list[int]] = [[0] * height for _ in range(width)]
         self._render()
 
     def _render(self) -> None:
         for x in range(self.width):
             for y in range(self.height):
                 state = self.grid[x][y]
-                rect = self.canvas.create_rectangle(
+                if hasattr(self.canvas, "create_image") and self.images.get(state):
+                    rect = self.canvas.create_image(
+                        x * TILE_SIZE,
+                        y * TILE_SIZE,
+                        anchor="nw",
+                        image=self.images[state],
+                    )
+                else:
+                    rect = self.canvas.create_rectangle(
+                        x * TILE_SIZE,
+                        y * TILE_SIZE,
+                        (x + 1) * TILE_SIZE,
+                        (y + 1) * TILE_SIZE,
+                        fill=self.colors[state],
+                    )
+                self.rects[x][y] = rect
+                self._update_shading(x, y)
+
+    def _update_shading(self, x: int, y: int) -> None:
+        """Add a semi-transparent overlay on tunnel edges."""
+        if self.shades[x][y]:
+            if hasattr(self.canvas, "delete"):
+                self.canvas.delete(self.shades[x][y])
+            self.shades[x][y] = 0
+
+        state = self.grid[x][y]
+        if state != TILE_TUNNEL:
+            return
+
+        # Determine if any neighbour is non-tunnel
+        for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+            nx, ny = x + dx, y + dy
+            if self.get_cell(nx, ny) != TILE_TUNNEL:
+                self.shades[x][y] = self.canvas.create_rectangle(
                     x * TILE_SIZE,
                     y * TILE_SIZE,
                     (x + 1) * TILE_SIZE,
                     (y + 1) * TILE_SIZE,
-                    fill=self.colors[state],
+                    fill="#00000040",
                 )
-                self.rects[x][y] = rect
+                break
 
     def get_cell(self, x: int, y: int) -> str:
         if x < 0 or y < 0 or x >= self.width or y >= self.height:
@@ -89,7 +168,30 @@ class Terrain:
     def set_cell(self, x: int, y: int, state: str) -> None:
         if 0 <= x < self.width and 0 <= y < self.height:
             self.grid[x][y] = state
-            self.canvas.itemconfigure(self.rects[x][y], fill=self.colors[state])
+            if hasattr(self.canvas, "delete"):
+                self.canvas.delete(self.rects[x][y])
+                if self.shades[x][y]:
+                    self.canvas.delete(self.shades[x][y])
+            if hasattr(self.canvas, "create_image") and self.images.get(state):
+                self.rects[x][y] = self.canvas.create_image(
+                    x * TILE_SIZE,
+                    y * TILE_SIZE,
+                    anchor="nw",
+                    image=self.images[state],
+                )
+            else:
+                self.rects[x][y] = self.canvas.create_rectangle(
+                    x * TILE_SIZE,
+                    y * TILE_SIZE,
+                    (x + 1) * TILE_SIZE,
+                    (y + 1) * TILE_SIZE,
+                    fill=self.colors[state],
+                )
+            self._update_shading(x, y)
+            for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                nx, ny = x + dx, y + dy
+                if 0 <= nx < self.width and 0 <= ny < self.height:
+                    self._update_shading(nx, ny)
 
 # Energy constants
 ENERGY_MAX = 100
@@ -179,6 +281,20 @@ class BaseAnt:
         self.item: int = sim.canvas.create_oval(
             x, y, x + ANT_SIZE, y + ANT_SIZE, fill=color
         )
+        self.energy_bar_bg = sim.canvas.create_rectangle(
+            x,
+            y - 4,
+            x + ANT_SIZE,
+            y - 2,
+            fill=PALETTE["bar_bg"],
+        )
+        self.energy_bar = sim.canvas.create_rectangle(
+            x,
+            y - 4,
+            x + ANT_SIZE,
+            y - 2,
+            fill=PALETTE["bar_green"],
+        )
         self.carrying_food: bool = False
         self.energy: float = min(ENERGY_MAX, energy)
         self.status: str = "Active"
@@ -231,6 +347,27 @@ class BaseAnt:
 
     def dig(self) -> None:
         self.consume_energy(DIG_ENERGY_COST)
+
+    def energy_color(self) -> str:
+        if self.energy > 60:
+            return PALETTE["bar_green"]
+        if self.energy > 30:
+            return PALETTE["bar_yellow"]
+        return PALETTE["bar_red"]
+
+    def update_energy_bar(self) -> None:
+        x1, y1, x2, _ = self.sim.canvas.coords(self.item)
+        self._set_coords(self.energy_bar_bg, x1, y1 - 4, x2, y1 - 2)
+        width = (self.energy / ENERGY_MAX) * (x2 - x1)
+        self._set_coords(self.energy_bar, x1, y1 - 4, x1 + width, y1 - 2)
+        self.sim.canvas.itemconfigure(self.energy_bar, fill=self.energy_color())
+
+    def _set_coords(self, item: int, x1: float, y1: float, x2: float, y2: float) -> None:
+        try:
+            self.sim.canvas.coords(item, x1, y1, x2, y2)
+        except TypeError:
+            if hasattr(self.sim.canvas, "objects"):
+                self.sim.canvas.objects[item] = [x1, y1, x2, y2]
 
 
     def update(self) -> None:
@@ -433,7 +570,23 @@ class Queen:
 
     def __init__(self, sim: "AntSim", x: int, y: int, model: str | None = None) -> None:
         self.sim = sim
-        self.item: int = sim.canvas.create_oval(x, y, x + 40, y + 20, fill="purple")
+        self.item: int = sim.canvas.create_oval(
+            x, y, x + 40, y + 20, fill=PALETTE["neon_purple"]
+        )
+        self.hunger_bar_bg = sim.canvas.create_rectangle(
+            x,
+            y - 6,
+            x + 40,
+            y - 4,
+            fill=PALETTE["bar_bg"],
+        )
+        self.hunger_bar = sim.canvas.create_rectangle(
+            x,
+            y - 6,
+            x + 40,
+            y - 4,
+            fill=PALETTE["bar_green"],
+        )
         self.hunger: float = 100
         self.spawn_timer: int = 300
         self.model = model or os.getenv("OPENAI_QUEEN_MODEL", "gpt-4-0125-preview")
@@ -445,6 +598,27 @@ class Queen:
     def feed(self, amount: float = 10) -> None:
         """Increase the queen's hunger level when fed."""
         self.hunger = min(100, self.hunger + amount)
+
+    def hunger_color(self) -> str:
+        if self.hunger > 60:
+            return PALETTE["bar_green"]
+        if self.hunger > 30:
+            return PALETTE["bar_yellow"]
+        return PALETTE["bar_red"]
+
+    def update_hunger_bar(self) -> None:
+        x1, y1, x2, _ = self.sim.canvas.coords(self.item)
+        self._set_coords(self.hunger_bar_bg, x1, y1 - 6, x2, y1 - 4)
+        width = (self.hunger / 100) * (x2 - x1)
+        self._set_coords(self.hunger_bar, x1, y1 - 6, x1 + width, y1 - 4)
+        self.sim.canvas.itemconfigure(self.hunger_bar, fill=self.hunger_color())
+
+    def _set_coords(self, item: int, x1: float, y1: float, x2: float, y2: float) -> None:
+        try:
+            self.sim.canvas.coords(item, x1, y1, x2, y2)
+        except TypeError:
+            if hasattr(self.sim.canvas, "objects"):
+                self.sim.canvas.objects[item] = [x1, y1, x2, y2]
 
     def thought(self) -> str:
         """Return the queen's current thought or mood."""
@@ -543,10 +717,10 @@ class Queen:
             self.sim.canvas.move(self.item, new_x1 - x1, new_y1 - y1)
 
         if self.hunger < 50:
-            self.sim.canvas.itemconfigure(self.item, fill="red")
+            self.sim.canvas.itemconfigure(self.item, fill=PALETTE["bar_red"])
             self.mad = True
         else:
-            self.sim.canvas.itemconfigure(self.item, fill="purple")
+            self.sim.canvas.itemconfigure(self.item, fill=PALETTE["neon_purple"])
             self.mad = False
 
         if self.mad:
@@ -560,19 +734,37 @@ class Queen:
                 self.sim.ants.append(WorkerAnt(self.sim, int(x), int(y), "blue"))
             self.spawn_timer = 300
 
+        self.update_hunger_bar()
+
 
 class AntSim:
     def __init__(self, master: tk.Tk) -> None:
         self.master = master
-        self.canvas = tk.Canvas(
-            master, width=WINDOW_WIDTH, height=WINDOW_HEIGHT, bg="white"
+        self.frame = tk.Frame(master, bg=PALETTE["frame"])
+        self.frame.pack(side="left", padx=5, pady=5)
+        self.title_label = tk.Label(
+            self.frame,
+            text="Ant Hive Simulation v0.1",
+            bg=PALETTE["frame"],
+            font=HEADER_FONT,
         )
-        self.canvas.pack(side="left")
-        self.sidebar = tk.Text(master, width=30)
+        self.title_label.pack(fill="x")
+        self.canvas = tk.Canvas(
+            self.frame,
+            width=WINDOW_WIDTH,
+            height=WINDOW_HEIGHT,
+            bg=PALETTE["background"],
+            highlightthickness=0,
+        )
+        self.canvas.pack()
+        self.sidebar = tk.Text(master, width=30, bg=PALETTE["sidebar"], font=MONO_FONT)
         self.sidebar.pack(side="right", fill="y")
+        self.sidebar.tag_configure("header", font=HEADER_FONT)
+        self.sidebar.tag_configure("normal", font=MONO_FONT)
         self.sidebar.configure(state="disabled")
         self.food_icon = create_glowing_icon(20)
-        self.spawn_button = tk.Button(master, image=self.food_icon, borderwidth=0)
+        self.spawn_button = tk.Button(master, image=self.food_icon, text="Food Drop", compound="top", borderwidth=0)
+
         self.spawn_button.pack(side="top")
         self.spawn_button.bind("<ButtonPress-1>", self.start_place_food)
         self.canvas.bind("<Button-1>", self.place_food)
@@ -699,23 +891,26 @@ class AntSim:
         )
         self.sidebar.configure(state="normal")
         self.sidebar.delete("1.0", tk.END)
-        self.sidebar.insert(tk.END, "Ant Stats:\n")
+        self.sidebar.insert(tk.END, "Ant Stats:\n", "header")
         for line in lines:
-            self.sidebar.insert(tk.END, line + "\n")
-        self.sidebar.insert(tk.END, "\nColony Stats:\n" + metrics)
+            self.sidebar.image_create(tk.END, image=self.ant_icon)
+            self.sidebar.insert(tk.END, " " + line + "\n", "normal")
+        self.sidebar.insert(tk.END, "\nColony Stats:\n", "header")
+        self.sidebar.insert(tk.END, metrics, "normal")
         all_entities = [self.queen] + self.ants
         sel = all_entities[self.selected_index]
         if sel is self.queen:
             thought = self.queen.thought()
-            self.sidebar.insert(tk.END, f"\nQueen Thought: {thought}")
+            self.sidebar.insert(tk.END, f"\nQueen Thought: {thought}", "normal")
         else:
-            self.sidebar.insert(tk.END, f"\nSelected: {sel.role}")
+            self.sidebar.insert(tk.END, f"\nSelected: {sel.role}", "normal")
         self.sidebar.configure(state="disabled")
         self.master.after(1000, self.update_sidebar)
 
     def update(self) -> None:
         for ant in self.ants:
             ant.update()
+            ant.update_energy_bar()
 
         self.queen.update()
         for drop in self.food_drops[:]:
@@ -729,6 +924,6 @@ class AntSim:
 
 if __name__ == "__main__":
     root = tk.Tk()
-    root.title("AI Ant Hive")
+    root.title("Ant Hive Simulation v0.1")
     app = AntSim(root)
     root.mainloop()
