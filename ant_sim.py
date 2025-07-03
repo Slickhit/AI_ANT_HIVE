@@ -89,7 +89,7 @@ class BaseAnt:
             x, y, x + ANT_SIZE, y + ANT_SIZE, fill=color
         )
         self.carrying_food: bool = False
-        self.energy: float = ENERGY_MAX
+        self.energy: float = min(ENERGY_MAX, energy)
         self.status: str = "Active"
         self.role: str = self.__class__.__name__
         self.ant_id: int = self.item
@@ -103,7 +103,9 @@ class BaseAnt:
         x1, y1, _, _ = self.sim.canvas.coords(self.item)
         new_x1 = max(0, min(WINDOW_WIDTH - ANT_SIZE, x1 + dx))
         new_y1 = max(0, min(WINDOW_HEIGHT - ANT_SIZE, y1 + dy))
-        cost = 1
+
+        # Base movement cost
+        cost = MOVE_ENERGY_COST
         if self.terrain:
             tile_x = int((new_x1 + ANT_SIZE / 2) // TILE_SIZE)
             tile_y = int((new_y1 + ANT_SIZE / 2) // TILE_SIZE)
@@ -112,12 +114,11 @@ class BaseAnt:
                 return
             if tile == TILE_SAND:
                 self.terrain.set_cell(tile_x, tile_y, TILE_TUNNEL)
-                cost = 2
+                cost += 1  # digging through sand costs extra
         if self.energy < cost:
             return
         self.energy -= cost
         self.sim.canvas.move(self.item, new_x1 - x1, new_y1 - y1)
-        self.consume_energy(MOVE_ENERGY_COST)
 
     def move_random(self) -> None:
         dx = random.choice([-MOVE_STEP, 0, MOVE_STEP])
@@ -224,8 +225,8 @@ class WorkerAnt(BaseAnt):
             x1, y1, _, _ = self.sim.canvas.coords(self.item)
             best_dir = None
             best_value = -1.0
-            for dx in (-MOVE_STEP, 0, MOVE_STEP):
-                for dy in (-MOVE_STEP, 0, MOVE_STEP):
+            for dx in (-TILE_SIZE, 0, TILE_SIZE):
+                for dy in (-TILE_SIZE, 0, TILE_SIZE):
                     if dx == 0 and dy == 0:
                         continue
                     nx = max(0, min(WINDOW_WIDTH - ANT_SIZE, x1 + dx))
@@ -282,10 +283,46 @@ class ScoutAnt(BaseAnt):
             self.move_random()
 
         coords = self.sim.canvas.coords(self.item)
-        self.sim.deposit_pheromone(coords[0], coords[1], SCOUT_PHEROMONE_AMOUNT)
+        if hasattr(self.sim, "deposit_pheromone"):
+            self.sim.deposit_pheromone(coords[0], coords[1], SCOUT_PHEROMONE_AMOUNT)
         self.last_pos = (coords[0], coords[1])
         self.visited.add(self.last_pos)
 
+
+class SoldierAnt(BaseAnt):
+    """Simple soldier ant that patrols around the queen."""
+
+    def update(self) -> None:
+        if self.energy <= 0:
+            self.rest()
+        else:
+            qx1, qy1, qx2, qy2 = self.sim.canvas.coords(self.sim.queen.item)
+            ax1, ay1, _, _ = self.sim.canvas.coords(self.item)
+            cx = (qx1 + qx2) / 2
+            cy = (qy1 + qy2) / 2
+            if abs(ax1 - cx) > TILE_SIZE * 3 or abs(ay1 - cy) > TILE_SIZE * 3:
+                self.move_towards(self.sim.queen.item)
+            else:
+                self.move_random()
+        coords = self.sim.canvas.coords(self.item)
+        self.last_pos = (coords[0], coords[1])
+
+
+class NurseAnt(BaseAnt):
+    """Ant that tends to the queen, feeding her when nearby."""
+
+    def update(self) -> None:
+        if self.energy <= 0:
+            self.rest()
+        else:
+            self.move_towards(self.sim.queen.item)
+            if self.sim.check_collision(self.item, self.sim.queen.item):
+                self.sim.queen.feed()
+                if hasattr(self.sim, "queen_fed"):
+                    self.sim.queen.fed += 1
+                    self.sim.queen_fed += 1
+        coords = self.sim.canvas.coords(self.item)
+        self.last_pos = (coords[0], coords[1])
 
 
 class Queen:
