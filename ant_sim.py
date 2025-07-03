@@ -1,3 +1,4 @@
+import time
 from ant_hive import *
 
 if __name__ == "__main__":
