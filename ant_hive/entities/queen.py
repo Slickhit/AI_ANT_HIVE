@@ -1,6 +1,7 @@
 import json
 import os
 import random
+import time
 import tkinter as tk
 
 from ..constants import ANT_SIZE, WINDOW_WIDTH, WINDOW_HEIGHT, PALETTE, MOVE_STEP
@@ -15,9 +16,15 @@ class Queen:
 
     def __init__(self, sim: "AntSim", x: int, y: int, model: str | None = None) -> None:
         self.sim = sim
-        self.item: int = sim.canvas.create_oval(x, y, x + 40, y + 20, fill=PALETTE["neon_purple"])
-        self.hunger_bar_bg = sim.canvas.create_rectangle(x, y - 6, x + 40, y - 4, fill=PALETTE["bar_bg"])
-        self.hunger_bar = sim.canvas.create_rectangle(x, y - 6, x + 40, y - 4, fill=PALETTE["bar_green"])
+        self.item: int = sim.canvas.create_oval(
+            x, y, x + 40, y + 20, fill=PALETTE["neon_purple"]
+        )
+        self.hunger_bar_bg = sim.canvas.create_rectangle(
+            x, y - 6, x + 40, y - 4, fill=PALETTE["bar_bg"]
+        )
+        self.hunger_bar = sim.canvas.create_rectangle(
+            x, y - 6, x + 40, y - 4, fill=PALETTE["bar_green"]
+        )
         self.hunger: float = 100
         self.spawn_timer: int = 300
         self.model = model or os.getenv("OPENAI_QUEEN_MODEL", "gpt-4-0125-preview")
@@ -27,13 +34,24 @@ class Queen:
         self.move_counter: int = 0
         self.thought_timer: int = 0
         self.current_thought: str = ""
+        self.last_command: str = ""
+        self.command_cooldown: int = 0
         self.glow_item = None
         self.glow_state = 0
         self.expression_item = None
         if isinstance(sim.canvas, tk.Canvas):
-            self.glow_item = sim.canvas.create_oval(x - 5, y - 10, x + ANT_SIZE + 5, y + ANT_SIZE + 10, outline="yellow", width=2)
+            self.glow_item = sim.canvas.create_oval(
+                x - 5,
+                y - 10,
+                x + ANT_SIZE + 5,
+                y + ANT_SIZE + 10,
+                outline="yellow",
+                width=2,
+            )
             sim.canvas.tag_lower(self.glow_item, self.item)
-            self.expression_item = sim.canvas.create_text(x + ANT_SIZE / 2, y - 15, text=":)", font=("Arial", 12))
+            self.expression_item = sim.canvas.create_text(
+                x + ANT_SIZE / 2, y - 15, text=":)", font=("Arial", 12)
+            )
             self.animate_glow()
 
     def feed(self, amount: float = 10) -> None:
@@ -53,7 +71,9 @@ class Queen:
         self._set_coords(self.hunger_bar, x1, y1 - 6, x1 + width, y1 - 4)
         self.sim.canvas.itemconfigure(self.hunger_bar, fill=self.hunger_color())
 
-    def _set_coords(self, item: int, x1: float, y1: float, x2: float, y2: float) -> None:
+    def _set_coords(
+        self, item: int, x1: float, y1: float, x2: float, y2: float
+    ) -> None:
         try:
             self.sim.canvas.coords(item, x1, y1, x2, y2)
         except TypeError:
@@ -63,11 +83,11 @@ class Queen:
     def thought(self) -> str:
         key = os.getenv("OPENAI_API_KEY")
         default = [
-            "I demand more food.",
-            "Where are my loyal workers?",
-            "This colony better prosper.",
-            "Another day of ruling...",
-            "Perhaps a nap soon.",
+            "Why do they cluster there?",
+            "The food... it moved?",
+            "Are they listening to me?",
+            "Patterns shifting around the nest.",
+            "Threat scents, faint but present.",
         ]
         prompt = {
             "hunger": int(self.hunger),
@@ -75,6 +95,7 @@ class Queen:
             "food": self.sim.food_collected,
             "ants": len(getattr(self.sim, "ants", [])),
             "eggs": len(getattr(self.sim, "eggs", [])),
+            "predators": len(getattr(self.sim, "predators", [])),
         }
         if self.thought_timer > 0:
             self.thought_timer -= 1
@@ -83,11 +104,18 @@ class Queen:
             new_thought = random.choice(default)
         else:
             messages = [
-                {"role": "system", "content": "You are a snarky ant queen. Reply with a single short thought about your state."},
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a curious ant queen. "
+                        "Speak in eight words or fewer about current observations."
+                    ),
+                },
                 {"role": "user", "content": json.dumps(prompt)},
             ]
             resp = chat_completion(messages, self.model, 20)
             new_thought = resp or random.choice(default)
+        new_thought = " ".join(new_thought.split()[:8])
         self.current_thought = new_thought
         self.thought_timer = 5
         return new_thought
@@ -108,7 +136,10 @@ class Queen:
             "population": counts,
         }
         messages = [
-            {"role": "system", "content": "Respond with yes or no if the queen should spawn a new worker."},
+            {
+                "role": "system",
+                "content": "Respond with yes or no if the queen should spawn a new worker.",
+            },
             {"role": "user", "content": json.dumps(prompt)},
         ]
         resp = chat_completion(messages, self.model, 1)
@@ -138,6 +169,23 @@ class Queen:
             self.sim.eggs.remove(egg)
             self.sim.ants.append(WorkerAnt(self.sim, x, y, "blue"))
 
+    def command_hive(
+        self, message: str, role: str | None = None, radius: int | None = None
+    ) -> None:
+        for ant in getattr(self.sim, "ants", []):
+            if role and getattr(ant, "role", ant.__class__.__name__) != role:
+                continue
+            if radius is not None:
+                ax1, ay1, _, _ = self.sim.canvas.coords(ant.item)
+                qx1, qy1, qx2, qy2 = self.sim.canvas.coords(self.item)
+                cx = (qx1 + qx2) / 2
+                cy = (qy1 + qy2) / 2
+                if (ax1 - cx) ** 2 + (ay1 - cy) ** 2 > radius**2:
+                    continue
+            ant.command = message
+            ant.status = message
+        self.last_command = message
+
     def animate_glow(self) -> None:
         if self.glow_item is None:
             return
@@ -148,6 +196,8 @@ class Queen:
         self.sim.master.after(200, self.animate_glow)
 
     def update(self) -> None:
+        if isinstance(self.sim.canvas, tk.Canvas):
+            time.sleep(4)
         self.hunger -= 0.1
         self.spawn_timer -= 1
         self.move_counter += 1
@@ -167,7 +217,11 @@ class Queen:
         if self.expression_item is not None:
             x1, y1, x2, _ = self.sim.canvas.coords(self.item)
             cx = (x1 + x2) / 2
-            expr = ">:(" if self.mad else (":D" if self.hunger > 80 else ":(" if self.hunger < 40 else ":|")
+            expr = (
+                ">:("
+                if self.mad
+                else (":D" if self.hunger > 80 else ":(" if self.hunger < 40 else ":|")
+            )
             self.sim.canvas.coords(self.expression_item, cx, y1 - 15)
             self.sim.canvas.itemconfigure(self.expression_item, text=expr)
         if self.mad:
@@ -179,4 +233,13 @@ class Queen:
                 y = y1 - ANT_SIZE * 2
                 self.lay_egg(int(x), int(y))
             self.spawn_timer = 300
+        if self.command_cooldown > 0:
+            self.command_cooldown -= 1
+        else:
+            if self.sim.food_collected < 5:
+                self.command_hive("All workers: gather food.", role="WorkerAnt")
+                self.command_cooldown = 50
+            elif getattr(self.sim, "predators", []):
+                self.command_hive("Soldiers: defend colony.", role="SoldierAnt")
+                self.command_cooldown = 50
         self.update_hunger_bar()
