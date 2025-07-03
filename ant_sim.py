@@ -13,6 +13,7 @@ openai.api_key = os.getenv("OPENAI_API_KEY", "")
 # Constants
 WINDOW_WIDTH = 400
 WINDOW_HEIGHT = 600
+SIDEBAR_WIDTH = 150
 ANT_SIZE = 10
 FOOD_SIZE = 8
 MOVE_STEP = 5
@@ -87,9 +88,12 @@ class BaseAnt:
             x, y, x + ANT_SIZE, y + ANT_SIZE, fill=color
         )
         self.carrying_food: bool = False
-        self.last_pos: Tuple[float, float] = (float(x), float(y))
-        self.energy: int = ENERGY_MAX
+              self.energy: float = ENERGY_MAX
+        self.status: str = "Active"
+        self.role: str = self.__class__.__name__
+        self.ant_id: int = self.item
         self.terrain: Terrain | None = getattr(sim, "terrain", None)
+
 
 
     def attempt_move(self, dx: int, dy: int) -> None:
@@ -138,8 +142,12 @@ class BaseAnt:
 
     def update(self) -> None:
         if self.energy <= 0:
+        if self.energy <= 0:
+            self.status = "Tired"
+            self.energy = max(0, self.energy - 0.1)
             self.rest()
             return
+
         self.move_random()
         coords = self.sim.canvas.coords(self.item)
         self.last_pos = (coords[0], coords[1])
@@ -280,6 +288,34 @@ class ScoutAnt(BaseAnt):
 
 
 
+class SoldierAnt(BaseAnt):
+    """Ant dedicated to defending the colony."""
+
+    def update(self) -> None:
+        if self.energy <= 0:
+            self.status = "Tired"
+            return
+        self.energy = max(0, self.energy - 0.1)
+        # Placeholder behavior: patrol randomly near the queen
+        self.move_random()
+        coords = self.sim.canvas.coords(self.item)
+        self.last_pos = (coords[0], coords[1])
+
+
+class NurseAnt(BaseAnt):
+    """Ant responsible for caring for larvae and the queen."""
+
+    def update(self) -> None:
+        if self.energy <= 0:
+            self.status = "Tired"
+            return
+        self.energy = max(0, self.energy - 0.05)
+        # Placeholder behavior: stay close to the queen
+        self.move_towards(self.sim.queen.item)
+        coords = self.sim.canvas.coords(self.item)
+        self.last_pos = (coords[0], coords[1])
+
+
 class Queen:
     """Represents the colony's queen. Uses OpenAI for spawn decisions."""
 
@@ -299,13 +335,21 @@ class Queen:
 
     def decide_spawn(self) -> bool:
         key = os.getenv("OPENAI_API_KEY")
+        counts: dict[str, int] = {}
+        for ant in self.sim.ants:
+            role = getattr(ant, "role", ant.__class__.__name__)
+            counts[role] = counts.get(role, 0) + 1
         if not key:
-            return True
+            # Simple heuristic when offline: spawn if food reserves exceed number
+            # of workers and queen is reasonably fed.
+            worker_count = counts.get("WorkerAnt", 0)
+            return self.sim.food_collected > worker_count and self.hunger > 30
         openai.api_key = key
         prompt = {
             "hunger": self.hunger,
             "ants": len(self.sim.ants),
             "food": self.sim.food_collected,
+            "population": counts,
         }
         try:
             resp = openai.ChatCompletion.create(
@@ -368,7 +412,10 @@ class AntSim:
         self.canvas = tk.Canvas(
             master, width=WINDOW_WIDTH, height=WINDOW_HEIGHT, bg="white"
         )
-        self.canvas.pack()
+        self.canvas.pack(side="left")
+        self.sidebar = tk.Text(master, width=30)
+        self.sidebar.pack(side="right", fill="y")
+        self.sidebar.configure(state="disabled")
 
         # Pheromone grid
         self.grid_width = WINDOW_WIDTH // TILE_SIZE
@@ -396,6 +443,8 @@ class AntSim:
             WorkerAnt(self, 195, 295, "blue"),
             WorkerAnt(self, 215, 295, "red"),
             ScoutAnt(self, 235, 295, "black"),
+            SoldierAnt(self, 255, 295, "orange"),
+            NurseAnt(self, 275, 295, "pink"),
         ]
 
         # Stats
@@ -404,6 +453,8 @@ class AntSim:
         self.stats_text: int = self.canvas.create_text(
             5, 5, anchor="nw", fill="blue", font=("Arial", 10)
         )
+
+        self.update_sidebar()
 
         # Kick off loop
         self.update()
@@ -444,6 +495,25 @@ class AntSim:
             f"Fed to Queen: {self.queen_fed}\n"
             f"Ants Active: {len(self.ants)}"
         )
+
+    def update_sidebar(self) -> None:
+        lines = [
+            f"ID {ant.ant_id} | {ant.role} | E:{int(ant.energy)} | {ant.status}"
+            for ant in self.ants
+        ]
+        metrics = (
+            f"Food: {self.food_collected}\n"
+            f"Queen Hunger: {int(self.queen.hunger)}\n"
+            f"Ants: {len(self.ants)}"
+        )
+        self.sidebar.configure(state="normal")
+        self.sidebar.delete("1.0", tk.END)
+        self.sidebar.insert(tk.END, "Ant Stats:\n")
+        for line in lines:
+            self.sidebar.insert(tk.END, line + "\n")
+        self.sidebar.insert(tk.END, "\nColony Stats:\n" + metrics)
+        self.sidebar.configure(state="disabled")
+        self.master.after(1000, self.update_sidebar)
 
     def update(self) -> None:
         for ant in self.ants:
