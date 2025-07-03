@@ -16,6 +16,9 @@ WINDOW_HEIGHT = 600
 ANT_SIZE = 10
 FOOD_SIZE = 8
 MOVE_STEP = 5
+TILE_SIZE = MOVE_STEP
+PHEROMONE_DECAY = 0.01
+SCOUT_PHEROMONE_AMOUNT = 1.0
 
 
 class BaseAnt:
@@ -97,7 +100,25 @@ class WorkerAnt(BaseAnt):
 
     def update(self) -> None:
         if not self.carrying_food:
-            self.move_towards(self.sim.food)
+            # Follow pheromones if present, otherwise head toward food
+            x1, y1, _, _ = self.sim.canvas.coords(self.item)
+            best_dir = None
+            best_value = -1.0
+            for dx in (-MOVE_STEP, 0, MOVE_STEP):
+                for dy in (-MOVE_STEP, 0, MOVE_STEP):
+                    if dx == 0 and dy == 0:
+                        continue
+                    nx = max(0, min(WINDOW_WIDTH - ANT_SIZE, x1 + dx))
+                    ny = max(0, min(WINDOW_HEIGHT - ANT_SIZE, y1 + dy))
+                    val = self.sim.get_pheromone(nx, ny)
+                    if val > best_value:
+                        best_value = val
+                        best_dir = (nx - x1, ny - y1)
+
+            if best_value > 0 and best_dir is not None:
+                self.sim.canvas.move(self.item, best_dir[0], best_dir[1])
+            else:
+                self.move_towards(self.sim.food)
             if self.sim.check_collision(self.item, self.sim.food):
                 self.carrying_food = True
                 self.sim.food_collected += 1
@@ -115,8 +136,11 @@ class WorkerAnt(BaseAnt):
 
 class ScoutAnt(BaseAnt):
     """Ant that explores randomly, remembering its last position."""
-
-    pass
+    def update(self) -> None:
+        self.move_random()
+        coords = self.sim.canvas.coords(self.item)
+        self.sim.deposit_pheromone(coords[0], coords[1], SCOUT_PHEROMONE_AMOUNT)
+        self.last_pos = (coords[0], coords[1])
 
 
 class Queen:
@@ -209,6 +233,13 @@ class AntSim:
         )
         self.canvas.pack()
 
+        # Pheromone grid
+        self.grid_width = WINDOW_WIDTH // TILE_SIZE
+        self.grid_height = WINDOW_HEIGHT // TILE_SIZE
+        self.pheromones: list[list[float]] = [
+            [0.0 for _ in range(self.grid_height)] for _ in range(self.grid_width)
+        ]
+
         # Entities
         self.food: int = self.canvas.create_rectangle(
             180, 20, 180 + FOOD_SIZE, 20 + FOOD_SIZE, fill="green"
@@ -235,6 +266,25 @@ class AntSim:
     def move_food(self) -> None:
         self.canvas.move(self.food, random.randint(-50, 50), random.randint(20, 40))
 
+    def deposit_pheromone(self, x: float, y: float, amount: float) -> None:
+        gx = int(x) // TILE_SIZE
+        gy = int(y) // TILE_SIZE
+        if 0 <= gx < self.grid_width and 0 <= gy < self.grid_height:
+            self.pheromones[gx][gy] += amount
+
+    def get_pheromone(self, x: float, y: float) -> float:
+        gx = int(x) // TILE_SIZE
+        gy = int(y) // TILE_SIZE
+        if 0 <= gx < self.grid_width and 0 <= gy < self.grid_height:
+            return self.pheromones[gx][gy]
+        return 0.0
+
+    def decay_pheromones(self) -> None:
+        for x in range(self.grid_width):
+            for y in range(self.grid_height):
+                if self.pheromones[x][y] > 0:
+                    self.pheromones[x][y] = max(0.0, self.pheromones[x][y] - PHEROMONE_DECAY)
+
     def get_coords(self, item: int) -> List[float]:
         return self.canvas.coords(item)
 
@@ -255,6 +305,7 @@ class AntSim:
             ant.update()
 
         self.queen.update()
+        self.decay_pheromones()
 
         self.canvas.itemconfigure(self.stats_text, text=self.get_stats())
         self.master.after(100, self.update)
