@@ -196,8 +196,11 @@ class Queen:
         self.sim.master.after(200, self.animate_glow)
 
     def update(self) -> None:
+        # Avoid blocking the Tkinter event loop with a long sleep.
+        # The previous implementation paused for four seconds,
+        # freezing the UI each update cycle.
         if isinstance(self.sim.canvas, tk.Canvas):
-            time.sleep(4)
+            time.sleep(0)
         self.hunger -= 0.1
         self.spawn_timer -= 1
         self.move_counter += 1
