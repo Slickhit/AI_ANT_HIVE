@@ -6,7 +6,6 @@ from .scout import ScoutAnt
 from .soldier import SoldierAnt
 from .nurse import NurseAnt
 
-
 def hatch_random_ant(sim: "AntSim", x: int, y: int):
     """Return a new ant instance using weighted role probabilities."""
     r = random.random()
@@ -17,6 +16,7 @@ def hatch_random_ant(sim: "AntSim", x: int, y: int):
     if r < 0.9:
         return SoldierAnt(sim, x, y, "orange")
     return NurseAnt(sim, x, y, "pink")
+
 
 
 class Egg:
@@ -33,5 +33,6 @@ class Egg:
             x1, y1, _, _ = self.sim.canvas.coords(self.item)
             self.sim.canvas.delete(self.item)
             self.sim.eggs.remove(self)
-            ant = hatch_random_ant(self.sim, int(x1), int(y1))
-            self.sim.ants.append(ant)
+        # Delegate role selection and spawning to the queen
+        self.sim.queen.hatch_ant(int(x1), int(y1))
+
