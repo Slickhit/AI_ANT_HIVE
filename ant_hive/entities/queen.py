@@ -34,8 +34,8 @@ class Queen:
             x, y - 6, x + 40, y - 4, fill=PALETTE["bar_green"]
         )
         self.hunger: float = 100
-        self.spawn_timer: int = 300
-        self.base_spawn_time: int = 300
+        self.spawn_timer: int = 240
+        self.base_spawn_time: int = 240
         self.egg_lay_cooldown: int = 0
         self.ready_to_mate: bool = True
         self.mating_cooldown: int = 0

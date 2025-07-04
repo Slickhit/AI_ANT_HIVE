@@ -71,7 +71,7 @@ class Terrain:
         self.rects: list[list[int]] = [[0] * height for _ in range(width)]
         self.shades: list[list[int]] = [[0] * height for _ in range(width)]
         self.explored: list[list[bool]] = [
-            [False for _ in range(height)] for _ in range(width)
+            [True for _ in range(height)] for _ in range(width)
         ]
         self.fog: list[list[int]] = [[0] * height for _ in range(width)]
         self._render()
@@ -168,13 +168,13 @@ class Terrain:
             self.grid.append([TILE_SAND for _ in range(self.height)])
             self.rects.append([0] * self.height)
             self.shades.append([0] * self.height)
-            self.explored.append([False] * self.height)
+            self.explored.append([True] * self.height)
             self.fog.append([0] * self.height)
         for x in range(new_width):
             self.grid[x].extend([TILE_SAND] * (new_height - len(self.grid[x])))
             self.rects[x].extend([0] * (new_height - len(self.rects[x])))
             self.shades[x].extend([0] * (new_height - len(self.shades[x])))
-            self.explored[x].extend([False] * (new_height - len(self.explored[x])))
+            self.explored[x].extend([True] * (new_height - len(self.explored[x])))
             self.fog[x].extend([0] * (new_height - len(self.fog[x])))
         old_width, old_height = self.width, self.height
         self.width, self.height = new_width, new_height

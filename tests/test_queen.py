@@ -100,7 +100,7 @@ def test_worker_ant_feeding_queen():
 def test_queen_creation():
     sim = FakeSim()
     assert sim.queen.hunger == 100
-    assert sim.queen.spawn_timer == 300
+    assert sim.queen.spawn_timer == 240
 
 def test_worker_feeds_queen():
     sim = FakeSim()

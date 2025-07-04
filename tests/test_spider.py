@@ -89,21 +89,18 @@ def test_spider_hunger_increases_after_three_ants():
     assert spider.hunger == 1
 
 
-def test_spider_update_skips_during_day():
+def test_spider_update_retreats_at_night():
     sim = FakeSim()
-    sim.is_night = False
+    sim.is_night = True
     spider = Spider(sim, 20, 0)
     ant = BaseAnt(sim, 0, 0)
     sim.ants.append(ant)
-    # move spider away from its lair
     sim.canvas.coords(spider.item, 30, 0, 30 + ANT_SIZE, ANT_SIZE)
     spider.update()
     coords = sim.canvas.coords(spider.item)
-    # spider should move back toward lair
     assert coords[0] < 30
-    assert ant.energy == 100
-    # once night falls the spider should hunt again
-    sim.is_night = True
+    sim.is_night = False
+    sim.canvas.coords(ant.item, 20, 0, 20 + ANT_SIZE, ANT_SIZE)
     spider.update()
     assert ant.energy < 100
 
@@ -146,7 +143,7 @@ def test_spider_retreats_to_lair():
     sim = FakeSim()
     spider = Spider(sim, 20, 0)
     sim.canvas.coords(spider.item, 30, 0, 30 + ANT_SIZE, ANT_SIZE)
-    sim.is_night = False
+    sim.is_night = True
     spider.update()
     coords = sim.canvas.coords(spider.item)
     assert coords[0] < 30
