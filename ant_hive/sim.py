@@ -27,6 +27,10 @@ from .entities.food import FoodDrop
 from .utils import brightness_at, stipple_from_brightness
 
 
+# Depth of diggable soil above the rocky layer at the bottom of the map.
+DIRT_DEPTH = 5
+
+
 class AntSim:
     def __init__(self, master: tk.Tk) -> None:
         self.master = master
@@ -152,17 +156,11 @@ class AntSim:
             rx = random.randint(0, self.terrain.width - 1)
             ry = random.randint(self.terrain.height // 2, self.terrain.height - 1)
             self.terrain.set_cell(rx, ry, TILE_ROCK)
-        start_x = self.grid_width // 2
-        start_y = self.grid_height // 2
+start_x = self.grid_width // 2
+start_y = self.grid_height // 2
+
         center_x = start_x * TILE_SIZE
         center_y = start_y * TILE_SIZE
-        for dx in range(-2, 3):
-            for dy in range(-2, 3):
-                self.terrain.set_cell(
-                    start_x + dx,
-                    start_y + dy,
-                    TILE_TUNNEL,
-                )
         self.food: int | None = None
         self.queen: Queen = Queen(self, center_x, center_y)
         self.ants: List[BaseAnt] = [
