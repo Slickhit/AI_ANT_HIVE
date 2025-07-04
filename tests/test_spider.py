@@ -99,3 +99,24 @@ def test_spider_update_skips_during_day():
     spider.update()
     assert sim.canvas.coords(spider.item) == start_coords
     assert ant.energy == 100
+
+
+def test_spider_lays_eggs_on_death():
+    sim = FakeSim()
+    spider = Spider(sim, 0, 0)
+    sim.predators.append(spider)
+    spider.vitality = 0
+    spider.update()
+    assert spider.has_laid_eggs
+    assert len(sim.predators) == 3
+
+
+def test_spider_growth_increases_speed():
+    sim = FakeSim()
+    spider = Spider(sim, 0, 0)
+    start_speed = spider.speed
+    start_consumption = spider.food_consumption
+    spider.sleep_cycle()
+    assert spider.size > 1.0
+    assert spider.speed > start_speed
+    assert spider.food_consumption > start_consumption

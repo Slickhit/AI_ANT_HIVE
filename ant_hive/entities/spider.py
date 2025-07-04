@@ -1,8 +1,17 @@
 from __future__ import annotations
 import random
 
-from ..constants import ANT_SIZE, MOVE_STEP, WINDOW_WIDTH, WINDOW_HEIGHT, PALETTE
+from ..constants import (
+    ANT_SIZE,
+    MOVE_STEP,
+    WINDOW_WIDTH,
+    WINDOW_HEIGHT,
+    PALETTE,
+)
 from .base_ant import BaseAnt
+
+BASE_SPEED = MOVE_STEP
+BASE_CONSUMPTION = 1.0
 
 
 class SpiderBrain:
@@ -21,10 +30,21 @@ class SpiderBrain:
         return dx, dy
 
 
+class Den:
+    """Simple object that spawns spiderlings at creation."""
+
+    def __init__(self, sim: "AntSim", x: int, y: int, count: int = 3) -> None:
+        self.sim = sim
+        self.item = sim.canvas.create_oval(x, y, x + ANT_SIZE, y + ANT_SIZE, fill="gray")
+        for _ in range(count):
+            spiderling = Spider(sim, x, y, energy=20, health=10, size=0.5)
+            sim.predators.append(spiderling)
+
+
 class Spider:
     """Predator equipped with a simple neural network brain."""
 
-    def __init__(self, sim: "AntSim", x: int, y: int, energy: int = 50, health: int = 30) -> None:
+    def __init__(self, sim: "AntSim", x: int, y: int, energy: int = 50, health: int = 30, size: float = 1.0) -> None:
         self.sim = sim
         self.energy = energy
         self.health = health
@@ -38,6 +58,12 @@ class Spider:
         self.hunger_bar_bg = sim.canvas.create_rectangle(x, y + ANT_SIZE + 2, x + ANT_SIZE, y + ANT_SIZE + 4, fill=PALETTE["bar_bg"])
         self.hunger_bar = sim.canvas.create_rectangle(x, y + ANT_SIZE + 2, x + ANT_SIZE, y + ANT_SIZE + 4, fill=PALETTE["bar_green"])
         self.visible = True
+        self.size = size
+        self.speed = BASE_SPEED * self.size
+        self.food_consumption = BASE_CONSUMPTION * self.size
+        self.has_laid_eggs = False
+        self.alive = True
+        self.last_is_night = True
 
     def set_visible(self, visible: bool) -> None:
         """Show or hide the spider and its UI elements."""
@@ -91,6 +117,9 @@ class Spider:
         dy_in = ay - cy
         inputs = (dx_in, dy_in, float(self.hunger))
         dx, dy = self.brain.decide(inputs)
+        scale = self.speed / MOVE_STEP
+        dx *= scale
+        dy *= scale
         new_x1 = max(0, min(WINDOW_WIDTH - ANT_SIZE, x1 + dx))
         new_y1 = max(0, min(WINDOW_HEIGHT - ANT_SIZE, y1 + dy))
         self.sim.canvas.move(self.item, new_x1 - x1, new_y1 - y1)
@@ -110,13 +139,40 @@ class Spider:
 
     def update(self) -> None:
         if self.vitality <= 0:
+            self.alive = False
+            if not self.has_laid_eggs:
+                self.lay_eggs()
+                self.has_laid_eggs = True
             if self in self.sim.predators:
                 self.sim.predators.remove(self)
-            for item in (self.item, self.life_bar_bg, self.life_bar, self.hunger_bar_bg, self.hunger_bar):
+            for item in (
+                self.item,
+                self.life_bar_bg,
+                self.life_bar,
+                self.hunger_bar_bg,
+                self.hunger_bar,
+            ):
                 self.sim.canvas.delete(item)
             return
-        self.vitality -= 0.05
+        self.vitality -= 0.05 * self.food_consumption
+        if not getattr(self.sim, "is_night", True) and self.last_is_night:
+            self.sleep_cycle()
+        self.last_is_night = getattr(self.sim, "is_night", True)
         if getattr(self.sim, "is_night", True):
             self.brain_move()
             self.attack_ants()
         self.update_bars()
+
+    def lay_eggs(self) -> None:
+        x1, y1, x2, y2 = self.sim.canvas.coords(self.item)
+        x = int((x1 + x2) / 2)
+        y = int((y1 + y2) / 2)
+        Den(self.sim, x, y)
+
+    def sleep_cycle(self) -> None:
+        self.grow()
+
+    def grow(self) -> None:
+        self.size *= 1.20
+        self.speed = BASE_SPEED * self.size
+        self.food_consumption = BASE_CONSUMPTION * self.size
