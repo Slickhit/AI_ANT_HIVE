@@ -83,7 +83,6 @@ class Spider:
         ):
             self.sim.canvas.itemconfigure(item, state=state)
         self.visible = visible
-   main
 
     def life_color(self) -> str:
         if self.vitality > 60:
@@ -227,4 +226,3 @@ class Spider:
         self.size *= 1.20
         self.speed = BASE_SPEED * self.size
         self.food_consumption = BASE_CONSUMPTION * self.size
-      main
