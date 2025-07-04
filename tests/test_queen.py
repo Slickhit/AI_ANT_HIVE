@@ -124,6 +124,9 @@ def test_ai_base_ant_moves_with_openai(mock_create):
     sim = FakeSim()
     ant = AIBaseAnt(sim, 0, 0)
     ant.update()
+    if ant._future:
+        ant._future.result()
+    ant.update()
     coords = sim.canvas.coords(ant.item)
     assert coords[0] == 5 and coords[1] == 0
     mock_create.assert_called_once()
@@ -133,9 +136,10 @@ def test_queen_uses_openai_for_spawn(mock_create):
     os.environ["OPENAI_API_KEY"] = "test"
     mock_create.return_value = MagicMock(choices=[MagicMock(message={"content": "yes"})])
     sim = FakeSim()
-
-    sim = FakeSim()
     sim.queen.spawn_timer = 0
+    sim.queen.update()
+    if sim.queen._spawn_future:
+        sim.queen._spawn_future.result()
     sim.queen.update()
     assert len(sim.ants) == 1
     mock_create.assert_called_once()

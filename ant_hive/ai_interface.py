@@ -1,4 +1,5 @@
 import os
+import concurrent.futures
 
 try:
     import openai
@@ -17,7 +18,10 @@ except Exception:  # pragma: no cover - optional dependency
 openai.api_key = os.getenv("OPENAI_API_KEY", "")
 
 
-def chat_completion(messages: list[dict], model: str, max_tokens: int = 20) -> str | None:
+_executor = concurrent.futures.ThreadPoolExecutor(max_workers=4)
+
+
+def _chat_task(messages: list[dict], model: str, max_tokens: int) -> str | None:
     try:
         resp = openai.ChatCompletion.create(
             model=model,
@@ -27,3 +31,10 @@ def chat_completion(messages: list[dict], model: str, max_tokens: int = 20) -> s
         return resp.choices[0].message["content"].strip()
     except Exception:
         return None
+
+
+def chat_completion(
+    messages: list[dict], model: str, max_tokens: int = 20
+) -> concurrent.futures.Future:
+    """Return a future that resolves with the completion text."""
+    return _executor.submit(_chat_task, messages, model, max_tokens)

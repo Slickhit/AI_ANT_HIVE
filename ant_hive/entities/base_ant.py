@@ -172,6 +172,7 @@ class AIBaseAnt(BaseAnt):
     ) -> None:
         super().__init__(sim, x, y, color)
         self.model = model or os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
+        self._future = None
 
     def get_ai_move(self) -> Tuple[int, int]:
         key = os.getenv("OPENAI_API_KEY")
@@ -191,13 +192,18 @@ class AIBaseAnt(BaseAnt):
             },
             {"role": "user", "content": json.dumps(state)},
         ]
-        result = chat_completion(messages, self.model, 10)
-        if result:
-            try:
-                data = json.loads(result)
-                return int(data.get("dx", 0)), int(data.get("dy", 0))
-            except Exception:
-                pass
+        if self._future is None:
+            self._future = chat_completion(messages, self.model, 10)
+            return 0, 0
+        if self._future.done():
+            result = self._future.result()
+            self._future = None
+            if result:
+                try:
+                    data = json.loads(result)
+                    return int(data.get("dx", 0)), int(data.get("dy", 0))
+                except Exception:
+                    pass
         return 0, 0
 
     def update(self) -> None:
