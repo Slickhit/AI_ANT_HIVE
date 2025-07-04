@@ -36,7 +36,8 @@ how many predators are present.
 The world slowly transitions between day and night over a 60‑second cycle.
 A small icon in the top-left corner shows the sun or moon along with the
 current day number. Nighttime applies a subtle blue tint without hiding the
-scene so the ants remain fully visible.
+scene so the ants remain fully visible. The simulation tracks the day count
+via `AntSim.current_day`, which increments every 60 seconds.
 
 ## Development
 

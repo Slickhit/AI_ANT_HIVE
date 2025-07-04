@@ -49,6 +49,7 @@ class AntSim:
             outline="",
             state="hidden",
         )
+        self.current_day = 1
         self.status_icon = self.canvas.create_text(
             5,
             5,
@@ -183,8 +184,8 @@ class AntSim:
 
         cycle = t % 60.0
         icon = "\u2600\ufe0f" if cycle < 30.0 else "\U0001f319"
-        day = int(t // 60.0) + 1
-        self.canvas.itemconfigure(self.status_icon, text=f"{icon} Day {day}")
+        self.current_day = int(t // 60.0) + 1
+        self.canvas.itemconfigure(self.status_icon, text=f"{icon} Day {self.current_day}")
 
     def refresh_ant_stats(self) -> None:
         active_ids = set()
