@@ -205,7 +205,7 @@ class BaseAnt:
         self.move_random()
         coords = self.sim.canvas.coords(self.item)
         self.last_pos = (coords[0], coords[1])
-        self.frame_index = (self.frame_index + 1) % len(self.sprite_frames)
+        self.frame_index = (self.frame_index + 1) % 4
         self.sim.canvas.itemconfigure(
             self.image_id, image=self.sprite_frames[self.frame_index]
         )
