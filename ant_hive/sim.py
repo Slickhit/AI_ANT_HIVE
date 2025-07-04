@@ -295,9 +295,10 @@ class AntSim:
 
     def update(self) -> None:
         self.update_lighting()
-        for ant in self.ants:
+        for ant in self.ants[:]:
             ant.update()
-            ant.update_energy_bar()
+            if ant.alive:
+                ant.update_energy_bar()
         for predator in self.predators[:]:
             predator.update()
         for egg in self.eggs[:]:
