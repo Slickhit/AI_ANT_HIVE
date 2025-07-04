@@ -8,6 +8,9 @@ from ..constants import (
     WINDOW_HEIGHT,
     PALETTE,
 )
+from ..utils import brightness_at
+from .base_ant import BaseAnt
+
 from .base_ant import BaseAnt
 
 BASE_SPEED = MOVE_STEP
@@ -57,6 +60,9 @@ class Spider:
         self.life_bar = sim.canvas.create_rectangle(x, y - 4, x + ANT_SIZE, y - 2, fill=PALETTE["bar_green"])
         self.hunger_bar_bg = sim.canvas.create_rectangle(x, y + ANT_SIZE + 2, x + ANT_SIZE, y + ANT_SIZE + 4, fill=PALETTE["bar_bg"])
         self.hunger_bar = sim.canvas.create_rectangle(x, y + ANT_SIZE + 2, x + ANT_SIZE, y + ANT_SIZE + 4, fill=PALETTE["bar_green"])
+        self.sense_label: int | None = None
+        self.visible = True
+
         self.visible = True
         self.size = size
         self.speed = BASE_SPEED * self.size
@@ -77,6 +83,7 @@ class Spider:
         ):
             self.sim.canvas.itemconfigure(item, state=state)
         self.visible = visible
+   main
 
     def life_color(self) -> str:
         if self.vitality > 60:
@@ -103,6 +110,40 @@ class Spider:
         self.sim.canvas.coords(self.hunger_bar, x1, y2 + 2, x1 + hwidth, y2 + 4)
         self.sim.canvas.itemconfigure(self.hunger_bar, fill=self.hunger_color())
 
+    def _maybe_show_sense_label(self, cx: float, cy: float) -> None:
+        """Display or move the 'Sensing...' label when hunting at night."""
+        import time
+
+        brightness = brightness_at(time.time() - getattr(self.sim, "start_time", 0))
+        is_night = brightness < 0.8
+
+        if is_night and self.sim.ants:
+            # find distance to nearest ant
+            nearest = min(
+                (
+                    (self.sim.canvas.coords(a.item)[0] - cx) ** 2
+                    + (self.sim.canvas.coords(a.item)[1] - cy) ** 2
+                )
+                ** 0.5
+                for a in self.sim.ants
+            )
+            if nearest < 150:
+                if self.sense_label is None:
+                    self.sense_label = self.sim.canvas.create_text(
+                        cx,
+                        cy - 15,
+                        text="Sensing...",
+                        fill="#ff4444",
+                        font=("Helvetica", 8),
+                    )
+                else:
+                    self.sim.canvas.coords(self.sense_label, cx, cy - 15)
+                return
+
+        if self.sense_label is not None:
+            self.sim.canvas.delete(self.sense_label)
+            self.sense_label = None
+
     def brain_move(self) -> None:
         if not self.sim.ants:
             return
@@ -123,6 +164,7 @@ class Spider:
         new_x1 = max(0, min(WINDOW_WIDTH - ANT_SIZE, x1 + dx))
         new_y1 = max(0, min(WINDOW_HEIGHT - ANT_SIZE, y1 + dy))
         self.sim.canvas.move(self.item, new_x1 - x1, new_y1 - y1)
+
 
     def attack_ants(self) -> None:
         for ant in self.sim.ants[:]:
@@ -162,6 +204,15 @@ class Spider:
             self.brain_move()
             self.attack_ants()
         self.update_bars()
+        x1, y1, x2, y2 = self.sim.canvas.coords(self.item)
+        cx = (x1 + x2) / 2
+        cy = (y1 + y2) / 2
+        self._maybe_show_sense_label(cx, cy)
+
+        cx = (x1 + x2) / 2
+        cy = (y1 + y2) / 2
+        self._maybe_show_sense_label(cx, cy)
+
 
     def lay_eggs(self) -> None:
         x1, y1, x2, y2 = self.sim.canvas.coords(self.item)
@@ -176,3 +227,4 @@ class Spider:
         self.size *= 1.20
         self.speed = BASE_SPEED * self.size
         self.food_consumption = BASE_CONSUMPTION * self.size
+      main
