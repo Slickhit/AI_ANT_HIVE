@@ -1,5 +1,6 @@
 import random
 import tkinter as tk
+from tkinter import ttk
 from typing import List
 import time
 
@@ -81,16 +82,19 @@ class AntSim:
         )
         self.stats_label.pack(side="top")
 
-        # Panel for individual ant statistics
-        self.ant_panel = tk.Frame(self.sidebar_frame, bg="#f9ebcc")
-        self.ant_panel.pack(side="top", fill="both", expand=True, pady=5)
-        tk.Label(
-            self.ant_panel,
-            text="Ant Stats:",
+        # Panel for individual ant statistics (collapsible)
+        self.ant_collapsed = False
+        self.ant_header = tk.Label(
+            self.sidebar_frame,
+            text="Ant Stats [-]",
             font=("Arial", 10, "bold"),
             bg="#f9ebcc",
             anchor="w",
-        ).pack(fill="x")
+        )
+        self.ant_header.pack(fill="x", pady=(5, 0))
+        self.ant_header.bind("<Button-1>", lambda _e: self.toggle_ant_panel())
+        self.ant_panel = tk.Frame(self.sidebar_frame, bg="#f9ebcc")
+        self.ant_panel.pack(side="top", fill="both", expand=True, pady=5)
         self.ant_canvas = tk.Canvas(
             self.ant_panel,
             bg="#f9ebcc",
@@ -137,6 +141,10 @@ class AntSim:
             font=MONO_FONT,
         )
         self.colony_stats_label.pack(fill="x")
+        self.event_log = tk.Text(
+            self.colony_panel, height=6, state="disabled", bg="#f9ebcc", wrap="word"
+        )
+        self.event_log.pack(fill="both", pady=(5, 0))
         self.spawn_button.bind("<ButtonPress-1>", self.start_place_food)
         self.canvas.bind("<Button-1>", self.place_food)
         self.placing_food = False
@@ -236,6 +244,23 @@ class AntSim:
             f"Queen Thought: {self.queen.thought()}"
         )
         self.colony_stats_label.configure(text=stats)
+
+    def log_event(self, message: str) -> None:
+        if not hasattr(self, "event_log"):
+            return
+        self.event_log.configure(state="normal")
+        self.event_log.insert("end", message + "\n")
+        self.event_log.see("end")
+        self.event_log.configure(state="disabled")
+
+    def toggle_ant_panel(self) -> None:
+        if self.ant_collapsed:
+            self.ant_panel.pack(side="top", fill="both", expand=True, pady=5)
+            self.ant_header.configure(text="Ant Stats [-]")
+        else:
+            self.ant_panel.pack_forget()
+            self.ant_header.configure(text="Ant Stats [+]")
+        self.ant_collapsed = not self.ant_collapsed
 
     def start_place_food(self, _event) -> None:
         self.placing_food = True

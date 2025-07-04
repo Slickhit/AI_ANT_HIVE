@@ -39,4 +39,6 @@ class Egg:
             self.sim.canvas.delete(self.item)
             self.sim.eggs.remove(self)
             # Delegate role selection and spawning to the queen
-            self.sim.queen.hatch_ant(int(x1), int(y1))
+            ant = self.sim.queen.hatch_ant(int(x1), int(y1))
+            if hasattr(self.sim, "log_event"):
+                self.sim.log_event(f"Egg hatched into {ant.role}")
