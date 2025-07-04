@@ -163,6 +163,28 @@ class BaseAnt:
             if hasattr(self.sim.canvas, "objects"):
                 self.sim.canvas.objects[item] = [x1, y1, x2, y2]
 
+    def update_visibility(self) -> None:
+        """Hide or show the ant based on the terrain cell under it."""
+        if not self.terrain:
+            return
+        x1, y1, x2, y2 = self.sim.canvas.coords(self.item)
+        cx = (x1 + x2) / 2
+        cy = (y1 + y2) / 2
+        tx = int(cx // TILE_SIZE)
+        ty = int(cy // TILE_SIZE)
+        visible = self.terrain.get_cell(tx, ty) == TILE_TUNNEL
+        state = "normal" if visible else "hidden"
+        for item in (
+            self.item,
+            self.image_id,
+            self.energy_bar_bg,
+            self.energy_bar,
+        ):
+            try:
+                self.sim.canvas.itemconfigure(item, state=state)
+            except Exception:
+                pass
+
     def update(self) -> None:
         if not self.alive:
             return
@@ -182,6 +204,7 @@ class BaseAnt:
         self.energy = max(0, self.energy - ENERGY_DECAY)
         if self.energy <= 0:
             self.die()
+        self.update_visibility()
 
 
 class AIBaseAnt(BaseAnt):
@@ -250,3 +273,4 @@ class AIBaseAnt(BaseAnt):
         self.energy = max(0, self.energy - ENERGY_DECAY)
         if self.energy <= 0:
             self.die()
+        self.update_visibility()
