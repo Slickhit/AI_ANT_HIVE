@@ -13,7 +13,7 @@ from .constants import (
     MONO_FONT,
     FOOD_SIZE,
 )
-from .terrain import Terrain, TILE_ROCK
+from .terrain import Terrain, TILE_ROCK, TILE_TUNNEL
 from .sprites import create_glowing_icon
 from .entities.base_ant import BaseAnt
 from .entities.worker import WorkerAnt
@@ -153,7 +153,14 @@ class AntSim:
             ry = random.randint(self.terrain.height // 2, self.terrain.height - 1)
             self.terrain.set_cell(rx, ry, TILE_ROCK)
         center_x = (self.grid_width // 2) * TILE_SIZE
-        center_y = (self.grid_height // 3) * TILE_SIZE
+        center_y = (self.grid_height * 2 // 3) * TILE_SIZE
+        for dx in range(-2, 3):
+            for dy in range(-2, 3):
+                self.terrain.set_cell(
+                    self.grid_width // 2 + dx,
+                    self.grid_height * 2 // 3 + dy,
+                    TILE_TUNNEL,
+                )
         self.food: int | None = None
         self.queen: Queen = Queen(self, center_x, center_y)
         self.ants: List[BaseAnt] = [
@@ -163,7 +170,7 @@ class AntSim:
             SoldierAnt(self, center_x + 75, center_y + 5, "orange"),
             NurseAnt(self, center_x + 95, center_y + 5, "pink"),
         ]
-        self.predators.append(Spider(self, 50, 50))
+        self.predators.append(Spider(self, 50, TILE_SIZE * 2))
         self.food_collected: int = 0
         self.queen_fed: int = 0
         self.ant_labels: dict[int, tk.Label] = {}
