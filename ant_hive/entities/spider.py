@@ -102,6 +102,7 @@ class Spider:
                 self.sim.canvas.delete(item)
             return
         self.vitality -= 0.05
-        self.brain_move()
-        self.attack_ants()
+        if getattr(self.sim, "is_night", True):
+            self.brain_move()
+            self.attack_ants()
         self.update_bars()

@@ -41,6 +41,7 @@ class AntSim:
         )
         self.canvas.pack()
         self.start_time = time.time()
+        self.is_night = False
         self.overlay = self.canvas.create_rectangle(
             0,
             0,
@@ -184,6 +185,7 @@ class AntSim:
             )
 
         cycle = t % 60.0
+        self.is_night = cycle >= 30.0
         icon = "\u2600\ufe0f" if cycle < 30.0 else "\U0001f319"
         self.current_day = int(t // 60.0) + 1
         self.canvas.itemconfigure(self.status_icon, text=f"{icon} Day {self.current_day}")
