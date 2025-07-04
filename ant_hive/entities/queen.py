@@ -27,6 +27,10 @@ class Queen:
         )
         self.hunger: float = 100
         self.spawn_timer: int = 300
+        self.base_spawn_time: int = 300
+        self.egg_lay_cooldown: int = 0
+        self.ready_to_mate: bool = True
+        self.mating_cooldown: int = 0
         self.model = model or os.getenv("OPENAI_QUEEN_MODEL", "gpt-4-0125-preview")
         self.mad: bool = False
         self.ant_positions: dict[int, tuple[float, float]] = {}
@@ -184,12 +188,15 @@ class Queen:
             self.ant_positions[ant.item] = (coords[0], coords[1])
 
     def lay_egg(self, x: int, y: int) -> None:
+        if self.egg_lay_cooldown > 0:
+            return
         spawn_direct = False
         if not hasattr(self.sim, "eggs"):
             self.sim.eggs = []
             spawn_direct = True
         egg = Egg(self.sim, x, y)
         self.sim.eggs.append(egg)
+        self.egg_lay_cooldown = int(self.base_spawn_time * 1.7)
         if spawn_direct:
             self.sim.eggs.remove(egg)
             # In minimal test environments without an egg list,
@@ -200,6 +207,14 @@ class Queen:
     def hatch_ant(self, x: int, y: int) -> None:
         """Hatch a new ant at the given position using weighted role probabilities."""
         self.sim.ants.append(hatch_random_ant(self.sim, x, y))
+
+    def begin_reproduction_cycle(self) -> None:
+        if not self.ready_to_mate:
+            return
+        qx1, qy1, _, _ = self.sim.canvas.coords(self.item)
+        self.lay_egg(int(qx1 + 20), int(qy1))
+        self.ready_to_mate = False
+        self.mating_cooldown = int(self.base_spawn_time * 1.7)
 
     def command_hive(
         self, message: str, role: str | None = None, radius: int | None = None
@@ -250,6 +265,12 @@ class Queen:
         if isinstance(self.sim.canvas, tk.Canvas):
             time.sleep(0)
         self.hunger -= 0.1
+        if self.egg_lay_cooldown > 0:
+            self.egg_lay_cooldown -= 1
+        if self.mating_cooldown > 0:
+            self.mating_cooldown -= 1
+        else:
+            self.ready_to_mate = True
         self.spawn_timer -= 1
         self.move_counter += 1
         if self.move_counter % 20 == 0:
@@ -280,12 +301,12 @@ class Queen:
         if self.spawn_timer <= 0 and self.hunger > 0:
             decision = self.decide_spawn()
             if decision is not None:
-                if decision:
+                if decision and self.egg_lay_cooldown <= 0:
                     x1, y1, x2, _ = self.sim.canvas.coords(self.item)
                     x = (x1 + x2) / 2
                     y = y1 - ANT_SIZE * 2
                     self.lay_egg(int(x), int(y))
-                self.spawn_timer = 300
+                self.spawn_timer = int(self.base_spawn_time * 1.7)
         if self.command_cooldown > 0:
             self.command_cooldown -= 1
         else:

@@ -4,6 +4,7 @@ from .scout import ScoutAnt
 from .soldier import SoldierAnt
 from .nurse import NurseAnt
 from .queen import Queen
+from .drone import DroneAnt
 from .spider import Spider, SpiderBrain, Den
 from .egg import Egg
 from .food import FoodDrop
@@ -16,6 +17,7 @@ __all__ = [
     "SoldierAnt",
     "NurseAnt",
     "Queen",
+    "DroneAnt",
     "Spider",
     "SpiderBrain",
     "Den",
