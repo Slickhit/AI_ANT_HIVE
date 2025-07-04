@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import random
 
 from ..constants import ANT_SIZE, MOVE_STEP, WINDOW_WIDTH, WINDOW_HEIGHT, SCOUT_PHEROMONE_AMOUNT
