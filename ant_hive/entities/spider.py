@@ -236,10 +236,14 @@ class Spider:
             return
         self.vitality -= 0.05 * self.food_consumption
         night = getattr(self.sim, "is_night", True)
-        if night and not self.last_is_night:
+        if not night and self.last_is_night:
             self.sleep_cycle()
         self.last_is_night = night
         if night:
+            self.brain_move()
+            self.attack_ants()
+            self.fear_aura()
+        else:
             self.retreat_to_lair()
             x1, y1, x2, y2 = self.sim.canvas.coords(self.item)
             cx = (x1 + x2) / 2
@@ -251,10 +255,6 @@ class Spider:
             ):
                 self.lay_eggs()
                 self.has_laid_eggs = True
-        else:
-            self.brain_move()
-            self.attack_ants()
-            self.fear_aura()
         self.update_bars()
         x1, y1, x2, y2 = self.sim.canvas.coords(self.item)
         cx = (x1 + x2) / 2
