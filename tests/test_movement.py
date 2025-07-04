@@ -13,6 +13,7 @@ from ant_sim import (
     Terrain,
     TILE_SIZE,
     TILE_TUNNEL,
+    TILE_SAND,
 )
 
 
@@ -149,3 +150,12 @@ class TestBaseAntMovement:
         ant = BaseAnt(sim, 0, 0, energy=10)
         ant.attempt_move(TILE_SIZE, 0)
         assert ant.energy == 9
+
+    def test_sand_to_tunnel_on_move(self):
+        sim = FakeSimWithTerrain()
+        ant = BaseAnt(sim, 0, 0, energy=10)
+        assert sim.terrain.get_cell(0, 0) == TILE_SAND
+        assert sim.terrain.get_cell(1, 0) == TILE_SAND
+        ant.attempt_move(TILE_SIZE, 0)
+        assert sim.terrain.get_cell(0, 0) == TILE_TUNNEL
+        assert sim.terrain.get_cell(1, 0) == TILE_TUNNEL

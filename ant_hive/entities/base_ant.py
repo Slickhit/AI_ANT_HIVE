@@ -98,6 +98,11 @@ class BaseAnt:
             if tile == TILE_SAND:
                 self.terrain.set_cell(tile_x, tile_y, TILE_TUNNEL)
                 cost += 1
+
+            orig_x = int((x1 + ANT_SIZE / 2) // TILE_SIZE)
+            orig_y = int((y1 + ANT_SIZE / 2) // TILE_SIZE)
+            if self.terrain.get_cell(orig_x, orig_y) == TILE_SAND:
+                self.terrain.set_cell(orig_x, orig_y, TILE_TUNNEL)
         if self.energy < cost:
             return
         self.energy -= cost
