@@ -180,9 +180,13 @@ class AIBaseAnt(BaseAnt):
             return random.choice([-MOVE_STEP, 0, MOVE_STEP]), random.choice(
                 [-MOVE_STEP, 0, MOVE_STEP]
             )
+        food_item = getattr(self.sim, "food", None)
+        food_coords = (
+            self.sim.canvas.coords(food_item) if food_item is not None else [0, 0, 0, 0]
+        )
         state = {
             "ant": self.sim.canvas.coords(self.item),
-            "food": self.sim.canvas.coords(self.sim.food),
+            "food": food_coords,
             "queen": self.sim.canvas.coords(self.sim.queen.item),
         }
         messages = [

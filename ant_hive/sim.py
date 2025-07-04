@@ -154,13 +154,7 @@ class AntSim:
             self.terrain.set_cell(rx, ry, TILE_ROCK)
         center_x = (self.grid_width // 2) * TILE_SIZE
         center_y = (self.grid_height // 3) * TILE_SIZE
-        self.food: int = self.canvas.create_rectangle(
-            center_x - TILE_SIZE,
-            TILE_SIZE,
-            center_x - TILE_SIZE + FOOD_SIZE,
-            TILE_SIZE + FOOD_SIZE,
-            fill="green",
-        )
+        self.food: int | None = None
         self.queen: Queen = Queen(self, center_x, center_y)
         self.ants: List[BaseAnt] = [
             WorkerAnt(self, center_x + 15, center_y + 5, "blue"),
@@ -276,6 +270,8 @@ class AntSim:
 
     def move_food(self) -> None:
         """Randomly reposition the main food source within canvas bounds."""
+        if self.food is None:
+            return
         x = random.randint(0, WINDOW_WIDTH - FOOD_SIZE)
         y = random.randint(0, WINDOW_HEIGHT - FOOD_SIZE)
         self.canvas.coords(self.food, x, y, x + FOOD_SIZE, y + FOOD_SIZE)
