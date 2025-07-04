@@ -28,3 +28,6 @@ MOVE_ENERGY_COST = 1
 DIG_ENERGY_COST = 2
 REST_ENERGY_GAIN = 5
 ENERGY_DECAY = 0.05
+
+# Distance in pixels to trigger the predator proximity alert
+PREDATOR_ALERT_RANGE = 120
