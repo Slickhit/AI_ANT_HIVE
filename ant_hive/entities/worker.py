@@ -47,16 +47,23 @@ class WorkerAnt(BaseAnt):
             nearest_dist = float("inf")
             for drop in getattr(self.sim, "food_drops", []):
                 if self.sim.check_collision(self.item, drop.item):
-                    if drop.take_charge():
-                        self.energy = min(ENERGY_MAX, self.energy + 20)
-                        self.carrying_food = True
-                        self.sim.food_collected += 1
-                        cx = start[0] + ANT_SIZE / 2
-                        cy = start[1] + ANT_SIZE / 2
-                        self.sim.sparkle(cx, cy)
+                    took = False
+                    while self.energy < ENERGY_MAX and drop.charges > 0:
+                        if drop.take_charge():
+                            took = True
+                            self.energy = min(ENERGY_MAX, self.energy + 20)
+                    if drop.charges > 0 and not self.carrying_food:
+                        if drop.take_charge():
+                            took = True
+                            self.carrying_food = True
+                            self.sim.food_collected += 1
+                            cx = start[0] + ANT_SIZE / 2
+                            cy = start[1] + ANT_SIZE / 2
+                            self.sim.sparkle(cx, cy)
                     if drop.charges <= 0:
                         self.sim.food_drops.remove(drop)
-                    break
+                    if took:
+                        break
                 else:
                     dx = self.sim.canvas.coords(drop.item)[0] - start[0]
                     dy = self.sim.canvas.coords(drop.item)[1] - start[1]
