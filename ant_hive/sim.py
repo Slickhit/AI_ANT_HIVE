@@ -12,6 +12,7 @@ from .constants import (
     PHEROMONE_DECAY,
     MONO_FONT,
     FOOD_SIZE,
+    PREDATOR_ALERT_RANGE,
 )
 from .terrain import Terrain, TILE_ROCK, TILE_TUNNEL
 from .sprites import create_glowing_icon
@@ -174,6 +175,9 @@ class AntSim:
         self.food_collected: int = 0
         self.queen_fed: int = 0
         self.ant_labels: dict[int, tk.Label] = {}
+        self.predator_alert_label: tk.Label | None = None
+        self._alert_job = None
+        self._alert_flash_state = False
         self.update()
 
     def update_lighting(self) -> None:
@@ -291,6 +295,73 @@ class AntSim:
         )
         self.canvas.after(250, lambda i=item: self.canvas.delete(i))
 
+    def _flash_predator_alert(self) -> None:
+        if self.predator_alert_label is None:
+            return
+        self._alert_flash_state = not self._alert_flash_state
+        color = "red" if self._alert_flash_state else "black"
+        try:
+            self.predator_alert_label.configure(fg=color)
+        except Exception:
+            pass
+        if hasattr(self.master, "after"):
+            self._alert_job = self.master.after(300, self._flash_predator_alert)
+
+    def _show_predator_alert(self) -> None:
+        if self.predator_alert_label is not None:
+            return
+        try:
+            self.predator_alert_label = tk.Label(
+                self.sidebar_frame,
+                text="Predator Near!",
+                fg="red",
+                bg=PALETTE["frame"],
+                font=("Arial", 10, "bold"),
+            )
+            self.predator_alert_label.pack(pady=5)
+        except Exception:
+            self.predator_alert_label = True  # type: ignore
+        if hasattr(self.master, "bell"):
+            try:
+                self.master.bell()
+            except Exception:
+                pass
+        self._flash_predator_alert()
+
+    def _hide_predator_alert(self) -> None:
+        if self.predator_alert_label is None:
+            return
+        try:
+            if hasattr(self.master, "after_cancel") and self._alert_job:
+                self.master.after_cancel(self._alert_job)
+        except Exception:
+            pass
+        try:
+            if hasattr(self.predator_alert_label, "destroy"):
+                self.predator_alert_label.destroy()
+        except Exception:
+            pass
+        self.predator_alert_label = None
+        self._alert_job = None
+
+    def _update_predator_alert(self) -> None:
+        qx1, qy1, qx2, qy2 = self.canvas.coords(self.queen.item)
+        qx = (qx1 + qx2) / 2
+        qy = (qy1 + qy2) / 2
+        alert = False
+        for predator in self.predators:
+            px1, py1, px2, py2 = self.canvas.coords(predator.item)
+            px = (px1 + px2) / 2
+            py = (py1 + py2) / 2
+            dist = ((px - qx) ** 2 + (py - qy) ** 2) ** 0.5
+            if dist <= PREDATOR_ALERT_RANGE:
+                alert = True
+                break
+        if alert:
+            self._show_predator_alert()
+        else:
+            self._hide_predator_alert()
+
     def update(self) -> None:
         self.update_lighting()
         for ant in self.ants[:]:
@@ -306,6 +377,7 @@ class AntSim:
             if drop.charges <= 0:
                 self.food_drops.remove(drop)
         self.decay_pheromones()
+        self._update_predator_alert()
         stats = (
             f"Food Collected: {self.food_collected}\n"
             f"Fed to Queen: {self.queen_fed}\n"
