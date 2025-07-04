@@ -84,6 +84,12 @@ class BaseAnt:
 
         cost = MOVE_ENERGY_COST
         if self.terrain:
+            # Check the tile the ant is currently on and convert sand to a tunnel
+            tile_x_current = int((x1 + ANT_SIZE / 2) // TILE_SIZE)
+            tile_y_current = int((y1 + ANT_SIZE / 2) // TILE_SIZE)
+            if self.terrain.get_cell(tile_x_current, tile_y_current) == TILE_SAND:
+                self.terrain.set_cell(tile_x_current, tile_y_current, TILE_TUNNEL)
+
             tile_x = int((new_x1 + ANT_SIZE / 2) // TILE_SIZE)
             tile_y = int((new_y1 + ANT_SIZE / 2) // TILE_SIZE)
             tile = self.terrain.get_cell(tile_x, tile_y)
