@@ -8,6 +8,7 @@ from ..constants import (
     WINDOW_HEIGHT,
     PALETTE,
 )
+from ..terrain import TILE_SIZE, TILE_TUNNEL
 from ..utils import brightness_at
 from .base_ant import BaseAnt
 
@@ -73,6 +74,22 @@ class Spider:
         self.has_laid_eggs = False
         self.alive = True
         self.last_is_night = True
+
+    def _terrain_blocked(self, x: float, y: float) -> bool:
+        if hasattr(self.sim, "terrain"):
+            tx = int((x + ANT_SIZE / 2) // TILE_SIZE)
+            ty = int((y + ANT_SIZE / 2) // TILE_SIZE)
+            if self.sim.terrain.get_cell(tx, ty) == TILE_TUNNEL:
+                return True
+        return False
+
+    def attempt_move(self, dx: float, dy: float) -> None:
+        x1, y1, _, _ = self.sim.canvas.coords(self.item)
+        new_x1 = max(0, min(WINDOW_WIDTH - ANT_SIZE, x1 + dx))
+        new_y1 = max(0, min(WINDOW_HEIGHT - ANT_SIZE, y1 + dy))
+        if self._terrain_blocked(new_x1, new_y1):
+            return
+        self.sim.canvas.move(self.item, new_x1 - x1, new_y1 - y1)
 
     def set_visible(self, visible: bool) -> None:
         """Show or hide the spider and its UI elements."""
@@ -163,9 +180,7 @@ class Spider:
         scale = self.speed / MOVE_STEP
         dx *= scale
         dy *= scale
-        new_x1 = max(0, min(WINDOW_WIDTH - ANT_SIZE, x1 + dx))
-        new_y1 = max(0, min(WINDOW_HEIGHT - ANT_SIZE, y1 + dy))
-        self.sim.canvas.move(self.item, new_x1 - x1, new_y1 - y1)
+        self.attempt_move(dx, dy)
 
 
     def _distance_to(self, ant: BaseAnt) -> float:
@@ -254,9 +269,7 @@ class Spider:
         scale = self.speed / MOVE_STEP
         dx *= scale
         dy *= scale
-        new_x1 = max(0, min(WINDOW_WIDTH - ANT_SIZE, x1 + dx))
-        new_y1 = max(0, min(WINDOW_HEIGHT - ANT_SIZE, y1 + dy))
-        self.sim.canvas.move(self.item, new_x1 - x1, new_y1 - y1)
+        self.attempt_move(dx, dy)
 
     def sleep_cycle(self) -> None:
         self.grow()
