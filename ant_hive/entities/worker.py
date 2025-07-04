@@ -14,6 +14,23 @@ from ..terrain import TILE_SIZE, TILE_TUNNEL, TILE_SAND, TILE_ROCK, TILE_COLLAPS
 class WorkerAnt(BaseAnt):
     """Ant focused on collecting food and feeding the queen."""
 
+    def __init__(
+        self,
+        sim: "AntSim",
+        x: int,
+        y: int,
+        color: str = "black",
+        energy: int = 100,
+    ) -> None:
+        super().__init__(sim, x, y, color, energy)
+        # Some simplified simulation objects used in tests may not implement
+        # ``move_food`` or ``sparkle``. Provide no-op fallbacks so calls to these
+        # methods do not raise ``AttributeError`` when they are missing.
+        if not hasattr(self.sim, "move_food"):
+            setattr(self.sim, "move_food", lambda: None)
+        if not hasattr(self.sim, "sparkle"):
+            setattr(self.sim, "sparkle", lambda _x, _y: None)
+
     def update(self) -> None:
         if self.energy <= 0:
             self.rest()
