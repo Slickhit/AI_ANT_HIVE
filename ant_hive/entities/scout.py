@@ -29,6 +29,12 @@ class ScoutAnt(BaseAnt):
             self.move_random()
         coords = self.sim.canvas.coords(self.item)
         if hasattr(self.sim, "deposit_pheromone"):
-            self.sim.deposit_pheromone(coords[0], coords[1], SCOUT_PHEROMONE_AMOUNT)
+            self.sim.deposit_pheromone(
+                coords[0],
+                coords[1],
+                SCOUT_PHEROMONE_AMOUNT,
+                "scout",
+                (x1, y1),
+            )
         self.last_pos = (coords[0], coords[1])
         self.visited.add(self.last_pos)

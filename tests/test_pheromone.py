@@ -66,26 +66,33 @@ class FakeSim:
         self.queen_fed = 0
         self.grid_width = WINDOW_WIDTH // TILE_SIZE
         self.grid_height = WINDOW_HEIGHT // TILE_SIZE
-        self.pheromones = [[0.0 for _ in range(self.grid_height)] for _ in range(self.grid_width)]
+        self.pheromones = {
+            "food": [[0.0 for _ in range(self.grid_height)] for _ in range(self.grid_width)],
+            "danger": [[0.0 for _ in range(self.grid_height)] for _ in range(self.grid_width)],
+            "scout": [[0.0 for _ in range(self.grid_height)] for _ in range(self.grid_width)],
+        }
 
-    def deposit_pheromone(self, x, y, amount):
+    def deposit_pheromone(self, x, y, amount, ptype="scout", prev=None):
+        grid = self.pheromones[ptype]
         gx = int(x) // TILE_SIZE
         gy = int(y) // TILE_SIZE
         if 0 <= gx < self.grid_width and 0 <= gy < self.grid_height:
-            self.pheromones[gx][gy] += amount
+            grid[gx][gy] += amount
 
-    def get_pheromone(self, x, y):
+    def get_pheromone(self, x, y, ptype="scout"):
+        grid = self.pheromones[ptype]
         gx = int(x) // TILE_SIZE
         gy = int(y) // TILE_SIZE
         if 0 <= gx < self.grid_width and 0 <= gy < self.grid_height:
-            return self.pheromones[gx][gy]
+            return grid[gx][gy]
         return 0.0
 
     def decay_pheromones(self):
-        for x in range(self.grid_width):
-            for y in range(self.grid_height):
-                if self.pheromones[x][y] > 0:
-                    self.pheromones[x][y] = max(0.0, self.pheromones[x][y] - PHEROMONE_DECAY)
+        for grid in self.pheromones.values():
+            for x in range(self.grid_width):
+                for y in range(self.grid_height):
+                    if grid[x][y] > 0:
+                        grid[x][y] = max(0.0, grid[x][y] - PHEROMONE_DECAY)
 
     def move_food(self):
         pass
@@ -103,15 +110,24 @@ def test_pheromone_decay():
     sim = FakeSim()
     sim.deposit_pheromone(0, 0, SCOUT_PHEROMONE_AMOUNT)
     sim.decay_pheromones()
-    assert sim.pheromones[0][0] == SCOUT_PHEROMONE_AMOUNT - PHEROMONE_DECAY
+    assert sim.pheromones["scout"][0][0] == SCOUT_PHEROMONE_AMOUNT - PHEROMONE_DECAY
 
 
 def test_worker_follows_pheromone():
     sim = FakeSim()
     # deposit pheromone to the right of starting tile
-    sim.deposit_pheromone(TILE_SIZE, 0, 1.0)
+    sim.deposit_pheromone(TILE_SIZE, 0, 1.0, "food")
     worker = WorkerAnt(sim, 0, 0)
     sim.ants.append(worker)
     worker.update()
     x1, y1, x2, y2 = sim.canvas.coords(worker.item)
     assert x1 > 0  # moved towards pheromone
+
+
+def test_multiple_pheromone_types_independent():
+    sim = FakeSim()
+    sim.deposit_pheromone(0, 0, 2.0, "scout")
+    sim.deposit_pheromone(0, 0, 1.0, "food")
+    sim.decay_pheromones()
+    assert sim.pheromones["scout"][0][0] == 2.0 - PHEROMONE_DECAY
+    assert sim.pheromones["food"][0][0] == 1.0 - PHEROMONE_DECAY

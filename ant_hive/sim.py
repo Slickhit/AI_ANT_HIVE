@@ -146,12 +146,17 @@ class AntSim:
         self.predators: List[Spider] = []
         self.grid_width = WINDOW_WIDTH // TILE_SIZE
         self.grid_height = WINDOW_HEIGHT // TILE_SIZE
-        self.pheromones: list[list[float]] = [
-            [0.0 for _ in range(self.grid_height)] for _ in range(self.grid_width)
-        ]
-        self.pheromone_items: list[list[int | None]] = [
-            [None for _ in range(self.grid_height)] for _ in range(self.grid_width)
-        ]
+        # Pheromone grids keyed by type
+        self.pheromones: dict[str, list[list[float]]] = {}
+        for key in ("food", "danger", "scout"):
+            self.pheromones[key] = [
+                [0.0 for _ in range(self.grid_height)] for _ in range(self.grid_width)
+            ]
+        self.pheromone_colors = {
+            "food": "green",
+            "danger": "red",
+            "scout": "purple",
+        }
         self.terrain = Terrain(self.grid_width, self.grid_height, self.canvas)
         for _ in range(30):
             rx = random.randint(0, self.terrain.width - 1)
@@ -250,26 +255,43 @@ class AntSim:
         self.food_drops.append(FoodDrop(self, event.x, event.y))
         self.placing_food = False
 
-    def deposit_pheromone(self, x: float, y: float, amount: float) -> None:
+    def deposit_pheromone(
+        self,
+        x: float,
+        y: float,
+        amount: float,
+        ptype: str = "scout",
+        prev: tuple[float, float] | None = None,
+    ) -> None:
+        grid = self.pheromones.setdefault(
+            ptype,
+            [[0.0 for _ in range(self.grid_height)] for _ in range(self.grid_width)],
+        )
         gx = int(x) // TILE_SIZE
         gy = int(y) // TILE_SIZE
         if 0 <= gx < self.grid_width and 0 <= gy < self.grid_height:
-            self.pheromones[gx][gy] += amount
+            grid[gx][gy] += amount
+        if prev is not None:
+            color = self.pheromone_colors.get(ptype, "black")
+            line = self.canvas.create_line(prev[0], prev[1], x, y, fill=color)
+            self.canvas.after(300, lambda i=line: self.canvas.delete(i))
 
-    def get_pheromone(self, x: float, y: float) -> float:
+    def get_pheromone(self, x: float, y: float, ptype: str = "scout") -> float:
+        grid = self.pheromones.get(ptype)
+        if grid is None:
+            return 0.0
         gx = int(x) // TILE_SIZE
         gy = int(y) // TILE_SIZE
         if 0 <= gx < self.grid_width and 0 <= gy < self.grid_height:
-            return self.pheromones[gx][gy]
+            return grid[gx][gy]
         return 0.0
 
     def decay_pheromones(self) -> None:
-        for x in range(self.grid_width):
-            for y in range(self.grid_height):
-                if self.pheromones[x][y] > 0:
-                    self.pheromones[x][y] = max(
-                        0.0, self.pheromones[x][y] - PHEROMONE_DECAY
-                    )
+        for grid in self.pheromones.values():
+            for x in range(self.grid_width):
+                for y in range(self.grid_height):
+                    if grid[x][y] > 0:
+                        grid[x][y] = max(0.0, grid[x][y] - PHEROMONE_DECAY)
 
     def get_coords(self, item: int) -> list[float]:
         return self.canvas.coords(item)
