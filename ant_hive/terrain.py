@@ -42,6 +42,16 @@ class Terrain:
         self.width = width
         self.height = height
         self.canvas = canvas
+        # Define zones used for future colony organization if the map
+        # is large enough for city planning logic.
+        if width >= 80 and height >= 60:
+            self.zones = {
+                "center": (20, 20, 40, 40),
+                "food_storage": (10, 45, 30, 55),
+                "nursery": (50, 45, 70, 55),
+            }
+        else:
+            self.zones = {}
         self.images: dict[str, tk.PhotoImage | None] = {}
         for key, data in self.texture_data.items():
             try:
@@ -51,6 +61,11 @@ class Terrain:
         self.grid: list[list[str]] = [
             [TILE_SAND for _ in range(height)] for _ in range(width)
         ]
+        if width >= 10 and height >= 10:
+            for x in range(width):
+                for y in range(height):
+                    if x < 5 or x > width - 5 or y > height - 5:
+                        self.grid[x][y] = TILE_ROCK
         self.rects: list[list[int]] = [[0] * height for _ in range(width)]
         self.shades: list[list[int]] = [[0] * height for _ in range(width)]
         self._render()
