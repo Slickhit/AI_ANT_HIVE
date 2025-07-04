@@ -153,7 +153,12 @@ class BaseAnt:
         return PALETTE.get("bar_red", "#8b0000")
 
     def update_energy_bar(self) -> None:
-        x1, y1, x2, _ = self.sim.canvas.coords(self.item)
+        if not self.alive:
+            return
+        coords = self.sim.canvas.coords(self.item)
+        if len(coords) < 4:
+            return
+        x1, y1, x2, _ = coords
         self._set_coords(self.energy_bar_bg, x1, y1 - 4, x2, y1 - 2)
         width = (self.energy / ENERGY_MAX) * (x2 - x1)
         self._set_coords(self.energy_bar, x1, y1 - 4, x1 + width, y1 - 2)
