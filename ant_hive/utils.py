@@ -6,7 +6,7 @@ def lerp(a: float, b: float, t: float) -> float:
 
 
 def brightness_at(t: float) -> float:
-    """Return lighting brightness for the day\-night cycle.
+    """Return lighting brightness for the day-night cycle.
 
     The cycle lasts 60 seconds with 30 seconds of day and 30 seconds of night.
     A short transition of two seconds is applied at the edges using linear
