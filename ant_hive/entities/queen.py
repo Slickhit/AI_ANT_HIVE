@@ -183,7 +183,15 @@ class Queen:
         self.sim.eggs.append(egg)
         if spawn_direct:
             self.sim.eggs.remove(egg)
-            self.sim.ants.append(WorkerAnt(self.sim, x, y, "blue"))
+            self.hatch_ant(x, y)
+
+    def hatch_ant(self, x: int, y: int) -> None:
+        """Hatch a new ant at the given position.
+
+        Role selection occurs here so the logic can be tweaked in
+        one place. For now this simply spawns a worker ant.
+        """
+        self.sim.ants.append(WorkerAnt(self.sim, x, y, "blue"))
 
     def command_hive(
         self, message: str, role: str | None = None, radius: int | None = None

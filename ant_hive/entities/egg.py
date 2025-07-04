@@ -1,5 +1,4 @@
 from ..constants import ANT_SIZE
-from .worker import WorkerAnt
 
 
 class Egg:
@@ -16,4 +15,5 @@ class Egg:
             x1, y1, _, _ = self.sim.canvas.coords(self.item)
             self.sim.canvas.delete(self.item)
             self.sim.eggs.remove(self)
-            self.sim.ants.append(WorkerAnt(self.sim, int(x1), int(y1), "blue"))
+            # Delegate role selection and spawning to the queen
+            self.sim.queen.hatch_ant(int(x1), int(y1))
