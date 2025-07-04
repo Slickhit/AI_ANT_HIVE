@@ -12,6 +12,7 @@ from .constants import (
     PHEROMONE_DECAY,
     MONO_FONT,
     FOOD_SIZE,
+    PREDATOR_ALERT_RANGE,
 )
 from .terrain import Terrain, TILE_ROCK, TILE_TUNNEL
 from .sprites import create_glowing_icon
@@ -154,12 +155,17 @@ class AntSim:
         self.predators: List[Spider] = []
         self.grid_width = WINDOW_WIDTH // TILE_SIZE
         self.grid_height = WINDOW_HEIGHT // TILE_SIZE
-        self.pheromones: list[list[float]] = [
-            [0.0 for _ in range(self.grid_height)] for _ in range(self.grid_width)
-        ]
-        self.pheromone_items: list[list[int | None]] = [
-            [None for _ in range(self.grid_height)] for _ in range(self.grid_width)
-        ]
+        # Pheromone grids keyed by type
+        self.pheromones: dict[str, list[list[float]]] = {}
+        for key in ("food", "danger", "scout"):
+            self.pheromones[key] = [
+                [0.0 for _ in range(self.grid_height)] for _ in range(self.grid_width)
+            ]
+        self.pheromone_colors = {
+            "food": "green",
+            "danger": "red",
+            "scout": "purple",
+        }
         self.terrain = Terrain(self.grid_width, self.grid_height, self.canvas)
         for _ in range(30):
             rx = random.randint(0, self.terrain.width - 1)
@@ -184,6 +190,9 @@ class AntSim:
         self.food_collected: int = 0
         self.queen_fed: int = 0
         self.ant_labels: dict[int, tk.Label] = {}
+        self.predator_alert_label: tk.Label | None = None
+        self._alert_job = None
+        self._alert_flash_state = False
         self.update()
 
     def update_lighting(self) -> None:
@@ -241,6 +250,7 @@ class AntSim:
         stats = (
             f"Food: {self.food_collected}\n"
             f"Queen Hunger: {int(self.queen.hunger)}\n"
+            f"Queen Mood: {self.queen.mood}\n"
             f"Ants: {len(self.ants)}\n"
             f"Eggs: {len(self.eggs)}\n"
             f"Queen Thought: {self.queen.thought()}"
@@ -256,26 +266,43 @@ class AntSim:
         self.food_drops.append(FoodDrop(self, event.x, event.y))
         self.placing_food = False
 
-    def deposit_pheromone(self, x: float, y: float, amount: float) -> None:
+    def deposit_pheromone(
+        self,
+        x: float,
+        y: float,
+        amount: float,
+        ptype: str = "scout",
+        prev: tuple[float, float] | None = None,
+    ) -> None:
+        grid = self.pheromones.setdefault(
+            ptype,
+            [[0.0 for _ in range(self.grid_height)] for _ in range(self.grid_width)],
+        )
         gx = int(x) // TILE_SIZE
         gy = int(y) // TILE_SIZE
         if 0 <= gx < self.grid_width and 0 <= gy < self.grid_height:
-            self.pheromones[gx][gy] += amount
+            grid[gx][gy] += amount
+        if prev is not None:
+            color = self.pheromone_colors.get(ptype, "black")
+            line = self.canvas.create_line(prev[0], prev[1], x, y, fill=color)
+            self.canvas.after(300, lambda i=line: self.canvas.delete(i))
 
-    def get_pheromone(self, x: float, y: float) -> float:
+    def get_pheromone(self, x: float, y: float, ptype: str = "scout") -> float:
+        grid = self.pheromones.get(ptype)
+        if grid is None:
+            return 0.0
         gx = int(x) // TILE_SIZE
         gy = int(y) // TILE_SIZE
         if 0 <= gx < self.grid_width and 0 <= gy < self.grid_height:
-            return self.pheromones[gx][gy]
+            return grid[gx][gy]
         return 0.0
 
     def decay_pheromones(self) -> None:
-        for x in range(self.grid_width):
-            for y in range(self.grid_height):
-                if self.pheromones[x][y] > 0:
-                    self.pheromones[x][y] = max(
-                        0.0, self.pheromones[x][y] - PHEROMONE_DECAY
-                    )
+        for grid in self.pheromones.values():
+            for x in range(self.grid_width):
+                for y in range(self.grid_height):
+                    if grid[x][y] > 0:
+                        grid[x][y] = max(0.0, grid[x][y] - PHEROMONE_DECAY)
 
     def get_coords(self, item: int) -> list[float]:
         return self.canvas.coords(item)
@@ -320,6 +347,75 @@ class AntSim:
             self.grid_width = new_grid_w
             self.grid_height = new_grid_h
 
+    def _flash_predator_alert(self) -> None:
+        if self.predator_alert_label is None:
+            return
+        self._alert_flash_state = not self._alert_flash_state
+        color = "red" if self._alert_flash_state else "black"
+        try:
+            self.predator_alert_label.configure(fg=color)
+        except Exception:
+            pass
+        if hasattr(self.master, "after"):
+            self._alert_job = self.master.after(300, self._flash_predator_alert)
+
+    def _show_predator_alert(self) -> None:
+        if self.predator_alert_label is not None:
+            return
+        try:
+            self.predator_alert_label = tk.Label(
+                self.sidebar_frame,
+                text="Predator Near!",
+                fg="red",
+                bg=PALETTE["frame"],
+                font=("Arial", 10, "bold"),
+            )
+            self.predator_alert_label.pack(pady=5)
+        except Exception:
+            pass
+        self.predator_alert_label = True  # type: ignore
+        if hasattr(self.master, "bell"):
+            try:
+                self.master.bell()
+            except Exception:
+                pass
+        self._flash_predator_alert()
+
+    def _hide_predator_alert(self) -> None:
+        if self.predator_alert_label is None:
+            return
+        try:
+            if hasattr(self.master, "after_cancel") and self._alert_job:
+                self.master.after_cancel(self._alert_job)
+        except Exception:
+            pass
+        try:
+            if hasattr(self.predator_alert_label, "destroy"):
+                self.predator_alert_label.destroy()
+        except Exception:
+            pass
+        self.predator_alert_label = None
+        self._alert_job = None
+
+    def _update_predator_alert(self) -> None:
+        qx1, qy1, qx2, qy2 = self.canvas.coords(self.queen.item)
+        qx = (qx1 + qx2) / 2
+        qy = (qy1 + qy2) / 2
+        alert = False
+        for predator in self.predators:
+            px1, py1, px2, py2 = self.canvas.coords(predator.item)
+            px = (px1 + px2) / 2
+            py = (py1 + py2) / 2
+            dist = ((px - qx) ** 2 + (py - qy) ** 2) ** 0.5
+            if dist <= PREDATOR_ALERT_RANGE:
+                alert = True
+                break
+        if alert:
+            self._show_predator_alert()
+        else:
+            self._hide_predator_alert()
+
+
     def update(self) -> None:
         self.update_lighting()
         for ant in self.ants[:]:
@@ -335,6 +431,7 @@ class AntSim:
             if drop.charges <= 0:
                 self.food_drops.remove(drop)
         self.decay_pheromones()
+        self._update_predator_alert()
         stats = (
             f"Food Collected: {self.food_collected}\n"
             f"Fed to Queen: {self.queen_fed}\n"

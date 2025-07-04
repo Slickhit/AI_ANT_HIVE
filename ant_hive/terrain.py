@@ -1,5 +1,7 @@
 import tkinter as tk
 
+from .utils import blend_color
+
 TILE_SIZE = 20
 TILE_SAND = "sand"
 TILE_TUNNEL = "tunnel"
@@ -74,6 +76,13 @@ class Terrain:
         self.fog: list[list[int]] = [[0] * height for _ in range(width)]
         self._render()
 
+    def _depth_color(self, color: str, y: int) -> str:
+        """Return a darker shade of ``color`` based on vertical index ``y``."""
+        if self.height <= 1:
+            return color
+        alpha = (y / (self.height - 1)) * 0.5
+        return blend_color(self.canvas, "black", color, alpha)
+
     def _render(self) -> None:
         for x in range(self.width):
             for y in range(self.height):
@@ -86,12 +95,15 @@ class Terrain:
                         image=self.images[state],
                     )
                 else:
+                    color = self.colors[state]
+                    if state in (TILE_SAND, TILE_TUNNEL):
+                        color = self._depth_color(color, y)
                     rect = self.canvas.create_rectangle(
                         x * TILE_SIZE,
                         y * TILE_SIZE,
                         (x + 1) * TILE_SIZE,
                         (y + 1) * TILE_SIZE,
-                        fill=self.colors[state],
+                        fill=color,
                     )
                 self.rects[x][y] = rect
                 self._update_shading(x, y)
@@ -229,12 +241,15 @@ class Terrain:
                     image=self.images[state],
                 )
             else:
+                color = self.colors[state]
+                if state in (TILE_SAND, TILE_TUNNEL):
+                    color = self._depth_color(color, y)
                 self.rects[x][y] = self.canvas.create_rectangle(
                     x * TILE_SIZE,
                     y * TILE_SIZE,
                     (x + 1) * TILE_SIZE,
                     (y + 1) * TILE_SIZE,
-                    fill=self.colors[state],
+                    fill=color,
                 )
             self._update_shading(x, y)
             self._update_fog(x, y)

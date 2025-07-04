@@ -159,3 +159,18 @@ def test_queen_uses_openai_for_spawn(mock_create):
     sim.queen.update()
     assert len(sim.ants) == 1
     mock_create.assert_called_once()
+
+
+def test_mood_changes_with_hunger():
+    sim = FakeSim()
+    sim.queen.hunger = 25
+    sim.queen.update()
+    assert sim.queen.mood == "hungry"
+
+
+def test_mood_changes_with_predators():
+    sim = FakeSim()
+    sim.predators = [object()]
+    sim.queen.hunger = 80
+    sim.queen.update()
+    assert sim.queen.mood == "threatened"

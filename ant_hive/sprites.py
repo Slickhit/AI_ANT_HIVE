@@ -6,20 +6,38 @@ from .constants import ANT_SIZE
 def _load_sprites() -> list[tk.PhotoImage | None]:
     try:
         frames: list[tk.PhotoImage] = []
-        for i in range(2):
+        for i in range(4):
             img = tk.PhotoImage(width=ANT_SIZE, height=ANT_SIZE)
             body_color = "brown"
             for x in range(ANT_SIZE):
                 for y in range(ANT_SIZE):
                     if 2 <= x < ANT_SIZE - 2 and 2 <= y < ANT_SIZE - 2:
                         img.put(body_color, (x, y))
-            leg_y = ANT_SIZE - 2 + (0 if i == 0 else -1)
-            img.put("black", (1, leg_y))
-            img.put("black", (ANT_SIZE - 2, leg_y))
+
+            # Legs animation
+            base_leg_y = ANT_SIZE - 2
+            if i == 0:
+                left_y = right_y = base_leg_y
+            elif i == 1:
+                left_y = right_y = base_leg_y - 1
+            elif i == 2:
+                left_y, right_y = base_leg_y, base_leg_y - 1
+            else:
+                left_y, right_y = base_leg_y - 1, base_leg_y
+
+            img.put("black", (1, left_y))
+            img.put("black", (ANT_SIZE - 2, right_y))
+
+            # Antennae animation
+            ant_y = 0 if i % 2 else 1
+            img.put("black", (ANT_SIZE // 2 - 1, ant_y))
+            img.put("black", (ANT_SIZE // 2 + 1, ant_y))
+
             frames.append(img)
+
         return frames
     except Exception:
-        return [None, None]
+        return [None, None, None, None]
 
 
 ANT_SPRITES = _load_sprites()

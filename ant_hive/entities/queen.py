@@ -54,6 +54,7 @@ class Queen:
         self.thinking_item = None
         self._thought_future = None
         self._spawn_future = None
+        self.mood = "content"
         if isinstance(sim.canvas, tk.Canvas):
             self.glow_item = sim.canvas.create_oval(
                 x - 5,
@@ -103,6 +104,18 @@ class Queen:
             if hasattr(self.sim.canvas, "objects"):
                 self.sim.canvas.objects[item] = [x1, y1, x2, y2]
 
+    def compute_mood(self) -> str:
+        """Determine the queen's mood based on colony conditions."""
+        predators = len(getattr(self.sim, "predators", []))
+        eggs = len(getattr(self.sim, "eggs", []))
+        if self.hunger < 30:
+            return "hungry"
+        if predators > 0:
+            return "threatened"
+        if eggs > 5:
+            return "protective"
+        return "content"
+
     def thought(self) -> str:
         key = os.getenv("OPENAI_API_KEY")
         default = [
@@ -119,6 +132,7 @@ class Queen:
             "ants": len(getattr(self.sim, "ants", [])),
             "eggs": len(getattr(self.sim, "eggs", [])),
             "predators": len(getattr(self.sim, "predators", [])),
+            "mood": self.mood,
         }
         if self.thought_timer > 0:
             self.thought_timer -= 1
@@ -319,14 +333,17 @@ class Queen:
         else:
             self.sim.canvas.itemconfigure(self.item, fill=PALETTE["neon_purple"])
             self.mad = False
+        self.mood = self.compute_mood()
         if self.expression_item is not None:
             x1, y1, x2, _ = self.sim.canvas.coords(self.item)
             cx = (x1 + x2) / 2
-            expr = (
-                ">:("
-                if self.mad
-                else (":D" if self.hunger > 80 else ":(" if self.hunger < 40 else ":|")
-            )
+            mood_map = {
+                "hungry": ":(",
+                "threatened": ">:o",
+                "protective": ":o",
+                "content": ":)",
+            }
+            expr = mood_map.get(self.mood, ":|")
             self.sim.canvas.coords(self.expression_item, cx, y1 - 15)
             self.sim.canvas.itemconfigure(self.expression_item, text=expr)
         if self.mad:
