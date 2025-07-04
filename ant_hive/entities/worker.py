@@ -98,15 +98,8 @@ class WorkerAnt(BaseAnt):
                 self.sim.sparkle(cx, cy)
         coords = self.sim.canvas.coords(self.item)
         if coords[:2] != start[:2]:
-            x1 = start[0] + ANT_SIZE / 2
-            y1 = start[1] + ANT_SIZE / 2
-            x2 = coords[0] + ANT_SIZE / 2
-            y2 = coords[1] + ANT_SIZE / 2
-            trail_color = blend_color(
-                self.sim.canvas, self.color, PALETTE["background"], 0.5
-            )
-            trail = self.sim.canvas.create_line(
-                x1, y1, x2, y2, fill=trail_color, dash=(2, 2)
-            )
-            self.sim.canvas.after(300, lambda t=trail: self.sim.canvas.delete(t))
+            # Previously the worker left a dashed trail showing its recent
+            # movement. The user requested that this trail be invisible, so we
+            # no longer draw the line at all.
+            pass
         self.last_pos = (coords[0], coords[1])
