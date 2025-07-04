@@ -79,7 +79,7 @@ class WorkerAnt(BaseAnt):
                             continue
                         nx = max(0, min(WINDOW_WIDTH - ANT_SIZE, x1 + dx))
                         ny = max(0, min(WINDOW_HEIGHT - ANT_SIZE, y1 + dy))
-                        val = self.sim.get_pheromone(nx, ny)
+                        val = self.sim.get_pheromone(nx, ny, "food")
                         if val > best_value:
                             best_value = val
                             best_dir = (nx - x1, ny - y1)
@@ -121,6 +121,14 @@ class WorkerAnt(BaseAnt):
                 x1, y1, x2, y2, fill=trail_color, dash=(2, 2)
             )
             self.sim.canvas.after(300, lambda t=trail: self.sim.canvas.delete(t))
+            if hasattr(self.sim, "deposit_pheromone") and self.carrying_food:
+                self.sim.deposit_pheromone(
+                    coords[0],
+                    coords[1],
+                    1.0,
+                    "food",
+                    (start[0], start[1]),
+                )
         self.last_pos = (coords[0], coords[1])
         from ..constants import ENERGY_DECAY
 
