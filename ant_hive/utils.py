@@ -47,3 +47,53 @@ def stipple_from_brightness(val: float) -> str:
     if alpha > 0.25:
         return "gray25"
     return "gray12"
+
+
+def blend_color(canvas, fg: str, bg: str, alpha: float) -> str:
+    """Blend ``fg`` over ``bg`` with transparency ``alpha``.
+
+    Parameters
+    ----------
+    canvas: tk.Canvas
+        Canvas used to resolve color names to RGB values.
+    fg: str
+        Foreground color string.
+    bg: str
+        Background color string.
+    alpha: float
+        Weight for ``fg`` in the range ``0.0`` to ``1.0``.
+
+    Returns
+    -------
+    str
+        Hex color string representing the blended color.
+    """
+    def _to_rgb(c: str) -> tuple[int, int, int]:
+        if hasattr(canvas, "winfo_rgb"):
+            try:
+                r, g, b = canvas.winfo_rgb(c)
+                return r // 256, g // 256, b // 256
+            except Exception:
+                pass
+        if c.startswith("#") and len(c) == 7:
+            return int(c[1:3], 16), int(c[3:5], 16), int(c[5:7], 16)
+        basic = {
+            "black": (0, 0, 0),
+            "white": (255, 255, 255),
+            "red": (255, 0, 0),
+            "green": (0, 128, 0),
+            "blue": (0, 0, 255),
+            "yellow": (255, 255, 0),
+            "orange": (255, 165, 0),
+            "pink": (255, 192, 203),
+            "brown": (165, 42, 42),
+            "purple": (128, 0, 128),
+        }
+        return basic.get(c.lower(), (0, 0, 0))
+
+    fr, fg_, fb = _to_rgb(fg)
+    br, bg_, bb = _to_rgb(bg)
+    r = int(fr * alpha + br * (1.0 - alpha))
+    g = int(fg_ * alpha + bg_ * (1.0 - alpha))
+    b = int(fb * alpha + bb * (1.0 - alpha))
+    return f"#{r:02x}{g:02x}{b:02x}"
