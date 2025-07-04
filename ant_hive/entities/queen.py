@@ -6,7 +6,7 @@ import tkinter as tk
 
 from ..constants import ANT_SIZE, WINDOW_WIDTH, WINDOW_HEIGHT, PALETTE, MOVE_STEP
 from ..ai_interface import chat_completion
-from .egg import Egg
+from .egg import Egg, hatch_random_ant
 from .worker import WorkerAnt
 from .base_ant import BaseAnt
 
@@ -39,6 +39,7 @@ class Queen:
         self.glow_item = None
         self.glow_state = 0
         self.expression_item = None
+        self.thinking_item = None
         self._thought_future = None
         self._spawn_future = None
         if isinstance(sim.canvas, tk.Canvas):
@@ -53,6 +54,14 @@ class Queen:
             sim.canvas.tag_lower(self.glow_item, self.item)
             self.expression_item = sim.canvas.create_text(
                 x + ANT_SIZE / 2, y - 15, text=":)", font=("Arial", 12)
+            )
+            self.thinking_item = sim.canvas.create_text(
+                x + ANT_SIZE / 2,
+                y - 30,
+                text="Thinking...",
+                font=("Arial", 10, "italic"),
+                fill="white",
+                state="hidden",
             )
             self.animate_glow()
 
@@ -183,7 +192,14 @@ class Queen:
         self.sim.eggs.append(egg)
         if spawn_direct:
             self.sim.eggs.remove(egg)
-            self.sim.ants.append(WorkerAnt(self.sim, x, y, "blue"))
+            # In minimal test environments without an egg list,
+            # spawn the ant immediately so behavior matches the full
+            # simulation where eggs eventually hatch.
+            self.hatch_ant(x, y)
+
+    def hatch_ant(self, x: int, y: int) -> None:
+        """Hatch a new ant at the given position using weighted role probabilities."""
+        self.sim.ants.append(hatch_random_ant(self.sim, x, y))
 
     def command_hive(
         self, message: str, role: str | None = None, radius: int | None = None
@@ -210,6 +226,22 @@ class Queen:
         color = "yellow" if self.glow_state == 0 else "orange"
         self.sim.canvas.itemconfigure(self.glow_item, width=width, outline=color)
         self.sim.master.after(200, self.animate_glow)
+
+    def update_thinking_indicator(self) -> None:
+        if self.thinking_item is None:
+            return
+        waiting = False
+        if self._thought_future is not None and not self._thought_future.done():
+            waiting = True
+        if self._spawn_future is not None and not self._spawn_future.done():
+            waiting = True
+        if waiting:
+            x1, y1, x2, _ = self.sim.canvas.coords(self.item)
+            cx = (x1 + x2) / 2
+            self.sim.canvas.coords(self.thinking_item, cx, y1 - 30)
+            self.sim.canvas.itemconfigure(self.thinking_item, state="normal")
+        else:
+            self.sim.canvas.itemconfigure(self.thinking_item, state="hidden")
 
     def update(self) -> None:
         # Avoid blocking the Tkinter event loop with a long sleep.
@@ -264,3 +296,4 @@ class Queen:
                 self.command_hive("Soldiers: defend colony.", role="SoldierAnt")
                 self.command_cooldown = 50
         self.update_hunger_bar()
+        self.update_thinking_indicator()

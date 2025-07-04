@@ -117,6 +117,22 @@ def test_queen_spawns_new_worker():
     FakeSim()
     # This placeholder test simply ensures construction succeeds
 
+def test_egg_hatch_calls_hatch_ant():
+    sim = FakeSim()
+    sim.eggs = []
+    called = []
+
+    def fake_hatch(x, y):
+        called.append((x, y))
+
+    sim.queen.hatch_ant = fake_hatch
+    sim.queen.lay_egg(5, 5)
+    egg = sim.eggs[0]
+    egg.hatch_time = 1
+    egg.update()
+
+    assert called == [(5, 5)]
+
 @patch("ant_sim.openai.ChatCompletion.create")
 def test_ai_base_ant_moves_with_openai(mock_create):
     os.environ["OPENAI_API_KEY"] = "test"

@@ -41,6 +41,7 @@ class AntSim:
         )
         self.canvas.pack()
         self.start_time = time.time()
+        self.is_night = False
         self.overlay = self.canvas.create_rectangle(
             0,
             0,
@@ -151,16 +152,22 @@ class AntSim:
             rx = random.randint(0, self.terrain.width - 1)
             ry = random.randint(self.terrain.height // 2, self.terrain.height - 1)
             self.terrain.set_cell(rx, ry, TILE_ROCK)
+        center_x = (self.grid_width // 2) * TILE_SIZE
+        center_y = (self.grid_height // 3) * TILE_SIZE
         self.food: int = self.canvas.create_rectangle(
-            180, 20, 180 + 8, 20 + 8, fill="green"
+            center_x - TILE_SIZE,
+            TILE_SIZE,
+            center_x - TILE_SIZE + FOOD_SIZE,
+            TILE_SIZE + FOOD_SIZE,
+            fill="green",
         )
-        self.queen: Queen = Queen(self, 180, 570)
+        self.queen: Queen = Queen(self, center_x, center_y)
         self.ants: List[BaseAnt] = [
-            WorkerAnt(self, 195, 295, "blue"),
-            WorkerAnt(self, 215, 295, "red"),
-            ScoutAnt(self, 235, 295, "black"),
-            SoldierAnt(self, 255, 295, "orange"),
-            NurseAnt(self, 275, 295, "pink"),
+            WorkerAnt(self, center_x + 15, center_y + 5, "blue"),
+            WorkerAnt(self, center_x + 35, center_y + 5, "red"),
+            ScoutAnt(self, center_x + 55, center_y + 5, "black"),
+            SoldierAnt(self, center_x + 75, center_y + 5, "orange"),
+            NurseAnt(self, center_x + 95, center_y + 5, "pink"),
         ]
         self.predators.append(Spider(self, 50, 50))
         self.food_collected: int = 0
@@ -176,14 +183,19 @@ class AntSim:
         if brightness >= 0.999:
             # Daytime without overlay
             self.canvas.itemconfigure(self.overlay, state="hidden")
+            for predator in self.predators:
+                predator.set_visible(False)
         else:
             self.canvas.itemconfigure(
                 self.overlay,
                 state="normal",
                 stipple=stipple_from_brightness(brightness),
             )
+            for predator in self.predators:
+                predator.set_visible(True)
 
         cycle = t % 60.0
+        self.is_night = cycle >= 30.0
         icon = "\u2600\ufe0f" if cycle < 30.0 else "\U0001f319"
         self.current_day = int(t // 60.0) + 1
         self.canvas.itemconfigure(self.status_icon, text=f"{icon} Day {self.current_day}")
