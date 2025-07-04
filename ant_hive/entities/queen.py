@@ -5,7 +5,7 @@ import time
 import tkinter as tk
 
 from ..constants import ANT_SIZE, WINDOW_WIDTH, WINDOW_HEIGHT, PALETTE, MOVE_STEP
-from ..ai_interface import chat_completion, openai
+from ..ai_interface import chat_completion
 from .egg import Egg
 from .worker import WorkerAnt
 from .base_ant import BaseAnt
@@ -39,6 +39,8 @@ class Queen:
         self.glow_item = None
         self.glow_state = 0
         self.expression_item = None
+        self._thought_future = None
+        self._spawn_future = None
         if isinstance(sim.canvas, tk.Canvas):
             self.glow_item = sim.canvas.create_oval(
                 x - 5,
@@ -102,25 +104,33 @@ class Queen:
             return self.current_thought
         if not key:
             new_thought = random.choice(default)
-        else:
-            messages = [
-                {
-                    "role": "system",
-                    "content": (
-                        "You are a curious ant queen. "
-                        "Speak in eight words or fewer about current observations."
-                    ),
-                },
-                {"role": "user", "content": json.dumps(prompt)},
-            ]
-            resp = chat_completion(messages, self.model, 20)
+            self.current_thought = new_thought
+            self.thought_timer = 5
+            return new_thought
+        messages = [
+            {
+                "role": "system",
+                "content": (
+                    "You are a curious ant queen. "
+                    "Speak in eight words or fewer about current observations."
+                ),
+            },
+            {"role": "user", "content": json.dumps(prompt)},
+        ]
+        if self._thought_future is None:
+            self._thought_future = chat_completion(messages, self.model, 20)
+            return self.current_thought
+        if self._thought_future.done():
+            resp = self._thought_future.result()
+            self._thought_future = None
             new_thought = resp or random.choice(default)
-        new_thought = " ".join(new_thought.split()[:8])
-        self.current_thought = new_thought
-        self.thought_timer = 5
-        return new_thought
+            new_thought = " ".join(new_thought.split()[:8])
+            self.current_thought = new_thought
+            self.thought_timer = 5
+            return new_thought
+        return self.current_thought
 
-    def decide_spawn(self) -> bool:
+    def decide_spawn(self) -> bool | None:
         key = os.getenv("OPENAI_API_KEY")
         counts: dict[str, int] = {}
         for ant in self.sim.ants:
@@ -142,8 +152,14 @@ class Queen:
             },
             {"role": "user", "content": json.dumps(prompt)},
         ]
-        resp = chat_completion(messages, self.model, 1)
-        return resp is None or resp.strip().lower().startswith("y")
+        if self._spawn_future is None:
+            self._spawn_future = chat_completion(messages, self.model, 1)
+            return None
+        if self._spawn_future.done():
+            resp = self._spawn_future.result()
+            self._spawn_future = None
+            return resp is None or resp.strip().lower().startswith("y")
+        return None
 
     def rescue_stuck_ants(self) -> None:
         for ant in self.sim.ants:
@@ -230,12 +246,14 @@ class Queen:
         if self.mad:
             self.rescue_stuck_ants()
         if self.spawn_timer <= 0 and self.hunger > 0:
-            if self.decide_spawn():
-                x1, y1, x2, _ = self.sim.canvas.coords(self.item)
-                x = (x1 + x2) / 2
-                y = y1 - ANT_SIZE * 2
-                self.lay_egg(int(x), int(y))
-            self.spawn_timer = 300
+            decision = self.decide_spawn()
+            if decision is not None:
+                if decision:
+                    x1, y1, x2, _ = self.sim.canvas.coords(self.item)
+                    x = (x1 + x2) / 2
+                    y = y1 - ANT_SIZE * 2
+                    self.lay_egg(int(x), int(y))
+                self.spawn_timer = 300
         if self.command_cooldown > 0:
             self.command_cooldown -= 1
         else:
