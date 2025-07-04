@@ -43,7 +43,9 @@ class FakeCanvas:
         x1, y1, x2, y2 = self.objects[item_id]
         self.objects[item_id] = [x1 + dx, y1 + dy, x2 + dx, y2 + dy]
 
-    def coords(self, item_id):
+    def coords(self, item_id, *args):
+        if args:
+            self.objects[item_id] = list(args)
         return self.objects[item_id]
 
     def itemconfigure(self, item_id, **kwargs):
@@ -55,6 +57,7 @@ class FakeSim:
         self.canvas = FakeCanvas()
         self.ants = []
         self.predators = []
+        self.is_night = True
 
     def get_coords(self, item):
         return self.canvas.coords(item)
@@ -84,3 +87,15 @@ def test_spider_hunger_increases_after_three_ants():
         sim.ants.append(ant)
     spider.attack_ants()
     assert spider.hunger == 1
+
+
+def test_spider_update_skips_during_day():
+    sim = FakeSim()
+    sim.is_night = False
+    spider = Spider(sim, 0, 0)
+    ant = BaseAnt(sim, 0, 0)
+    sim.ants.append(ant)
+    start_coords = sim.canvas.coords(spider.item)
+    spider.update()
+    assert sim.canvas.coords(spider.item) == start_coords
+    assert ant.energy == 100
