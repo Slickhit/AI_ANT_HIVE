@@ -68,6 +68,7 @@ class BaseAnt:
 
         self.carrying_food: bool = False
         self.energy: float = min(ENERGY_MAX, energy)
+        self.alive: bool = True
         self.status: str = "Active"
         self.command: str | None = None
         self.role: str = self.__class__.__name__
@@ -120,6 +121,19 @@ class BaseAnt:
     def dig(self) -> None:
         self.consume_energy(DIG_ENERGY_COST)
 
+    def die(self) -> None:
+        """Remove the ant from the simulation."""
+        if not self.alive:
+            return
+        self.alive = False
+        if hasattr(self.sim, "ants") and self in self.sim.ants:
+            self.sim.ants.remove(self)
+        for item in [self.item, self.image_id, self.energy_bar_bg, self.energy_bar]:
+            try:
+                self.sim.canvas.delete(item)
+            except Exception:
+                pass
+
     def energy_color(self) -> str:
         if self.energy > 60:
             return PALETTE.get("bar_green", "#4caf50")
@@ -144,10 +158,10 @@ class BaseAnt:
                 self.sim.canvas.objects[item] = [x1, y1, x2, y2]
 
     def update(self) -> None:
+        if not self.alive:
+            return
         if self.energy <= 0:
-            self.status = "Tired"
-            self.energy = max(0, self.energy - 0.1)
-            self.rest()
+            self.die()
             return
 
         self.move_random()
@@ -157,6 +171,11 @@ class BaseAnt:
         self.sim.canvas.itemconfigure(
             self.image_id, image=self.sprite_frames[self.frame_index]
         )
+        from ..constants import ENERGY_DECAY
+
+        self.energy = max(0, self.energy - ENERGY_DECAY)
+        if self.energy <= 0:
+            self.die()
 
 
 class AIBaseAnt(BaseAnt):
@@ -211,12 +230,17 @@ class AIBaseAnt(BaseAnt):
         return 0, 0
 
     def update(self) -> None:
+        if not self.alive:
+            return
         if self.energy <= 0:
-            self.rest()
-            coords = self.sim.canvas.coords(self.item)
-            self.last_pos = (coords[0], coords[1])
+            self.die()
             return
         dx, dy = self.get_ai_move()
         self.attempt_move(dx, dy)
         coords = self.sim.canvas.coords(self.item)
         self.last_pos = (coords[0], coords[1])
+        from ..constants import ENERGY_DECAY
+
+        self.energy = max(0, self.energy - ENERGY_DECAY)
+        if self.energy <= 0:
+            self.die()

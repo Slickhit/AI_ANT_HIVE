@@ -5,18 +5,21 @@ from .worker import WorkerAnt
 from .scout import ScoutAnt
 from .soldier import SoldierAnt
 from .nurse import NurseAnt
+from .drone import DroneAnt
 
 
 def hatch_random_ant(sim: "AntSim", x: int, y: int):
     """Return a new ant instance using weighted role probabilities."""
     r = random.random()
-    if r < 0.5:
+    if r < 0.4:
         return WorkerAnt(sim, x, y, "blue")
-    if r < 0.7:
+    if r < 0.6:
         return ScoutAnt(sim, x, y, "black")
-    if r < 0.9:
+    if r < 0.8:
         return SoldierAnt(sim, x, y, "orange")
-    return NurseAnt(sim, x, y, "pink")
+    if r < 0.95:
+        return NurseAnt(sim, x, y, "pink")
+    return DroneAnt(sim, x, y, "purple")
 
 
 class Egg:

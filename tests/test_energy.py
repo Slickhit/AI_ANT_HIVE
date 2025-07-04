@@ -60,6 +60,7 @@ class FakeCanvas:
 class FakeSim:
     def __init__(self):
         self.canvas = FakeCanvas()
+        self.ants = []
 
 
 class TestEnergy:
@@ -85,14 +86,11 @@ class TestEnergy:
         ant.rest()
         assert ant.energy == REST_ENERGY_GAIN
 
-    def test_update_rests_when_energy_empty(self, monkeypatch):
+    def test_ant_dies_when_energy_empty(self, monkeypatch):
         sim = FakeSim()
         ant = BaseAnt(sim, 0, 0)
+        sim.ants.append(ant)
         ant.energy = 1
         monkeypatch.setattr(random, "choice", lambda options: 0)
         ant.update()
-        pos = sim.canvas.coords(ant.item)
-        assert ant.energy == 0
-        ant.update()
-        assert sim.canvas.coords(ant.item) == pos
-        assert ant.energy == REST_ENERGY_GAIN
+        assert not ant.alive
