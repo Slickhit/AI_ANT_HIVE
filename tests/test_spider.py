@@ -102,6 +102,10 @@ def test_spider_update_skips_during_day():
     # spider should move back toward lair
     assert coords[0] < 30
     assert ant.energy == 100
+    # once night falls the spider should hunt again
+    sim.is_night = True
+    spider.update()
+    assert ant.energy < 100
 
 
 def test_spider_lays_eggs_on_death():

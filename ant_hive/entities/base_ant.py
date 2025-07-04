@@ -201,8 +201,10 @@ class BaseAnt:
         if self.energy <= 0:
             self.die()
             return
-
-        self.move_random()
+        if getattr(self.sim, "is_night", False) and hasattr(self.sim, "queen"):
+            self.move_towards(self.sim.queen.item)
+        else:
+            self.move_random()
         coords = self.sim.canvas.coords(self.item)
         self.last_pos = (coords[0], coords[1])
         self.frame_index = (self.frame_index + 1) % len(self.sprite_frames)
@@ -274,8 +276,11 @@ class AIBaseAnt(BaseAnt):
         if self.energy <= 0:
             self.die()
             return
-        dx, dy = self.get_ai_move()
-        self.attempt_move(dx, dy)
+        if getattr(self.sim, "is_night", False) and hasattr(self.sim, "queen"):
+            self.move_towards(self.sim.queen.item)
+        else:
+            dx, dy = self.get_ai_move()
+            self.attempt_move(dx, dy)
         coords = self.sim.canvas.coords(self.item)
         self.last_pos = (coords[0], coords[1])
         from ..constants import ENERGY_DECAY

@@ -9,6 +9,11 @@ class SoldierAnt(BaseAnt):
     """Simple soldier ant that patrols around the queen."""
 
     def update(self) -> None:
+        if getattr(self.sim, "is_night", False):
+            self.move_towards(self.sim.queen.item)
+            coords = self.sim.canvas.coords(self.item)
+            self.last_pos = (coords[0], coords[1])
+            return
         if self.energy <= 0:
             self.rest()
         else:
