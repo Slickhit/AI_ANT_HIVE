@@ -231,6 +231,7 @@ class AntSim:
         stats = (
             f"Food: {self.food_collected}\n"
             f"Queen Hunger: {int(self.queen.hunger)}\n"
+            f"Queen Mood: {self.queen.mood}\n"
             f"Ants: {len(self.ants)}\n"
             f"Eggs: {len(self.eggs)}\n"
             f"Queen Thought: {self.queen.thought()}"
