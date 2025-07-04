@@ -6,7 +6,7 @@ import tkinter as tk
 
 from ..constants import ANT_SIZE, WINDOW_WIDTH, WINDOW_HEIGHT, PALETTE, MOVE_STEP
 from ..ai_interface import chat_completion
-from .egg import Egg
+from .egg import Egg, hatch_random_ant
 from .worker import WorkerAnt
 from .base_ant import BaseAnt
 
@@ -183,15 +183,10 @@ class Queen:
         self.sim.eggs.append(egg)
         if spawn_direct:
             self.sim.eggs.remove(egg)
-            self.hatch_ant(x, y)
-
     def hatch_ant(self, x: int, y: int) -> None:
-        """Hatch a new ant at the given position.
+        """Hatch a new ant at the given position using weighted role probabilities."""
+        self.sim.ants.append(hatch_random_ant(self.sim, x, y))
 
-        Role selection occurs here so the logic can be tweaked in
-        one place. For now this simply spawns a worker ant.
-        """
-        self.sim.ants.append(WorkerAnt(self.sim, x, y, "blue"))
 
     def command_hive(
         self, message: str, role: str | None = None, radius: int | None = None
