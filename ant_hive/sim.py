@@ -11,6 +11,7 @@ from .constants import (
     TILE_SIZE,
     PHEROMONE_DECAY,
     MONO_FONT,
+    FOOD_SIZE,
 )
 from .terrain import Terrain, TILE_ROCK
 from .sprites import create_glowing_icon
@@ -260,6 +261,20 @@ class AntSim:
         ax1, ay1, ax2, ay2 = self.get_coords(a)
         bx1, by1, bx2, by2 = self.get_coords(b)
         return ax1 < bx2 and ax2 > bx1 and ay1 < by2 and ay2 > by1
+
+    def move_food(self) -> None:
+        """Randomly reposition the main food source within canvas bounds."""
+        x = random.randint(0, WINDOW_WIDTH - FOOD_SIZE)
+        y = random.randint(0, WINDOW_HEIGHT - FOOD_SIZE)
+        self.canvas.coords(self.food, x, y, x + FOOD_SIZE, y + FOOD_SIZE)
+
+    def sparkle(self, x: float, y: float) -> None:
+        """Display a short-lived sparkle effect at the given coordinates."""
+        radius = 6
+        item = self.canvas.create_oval(
+            x - radius, y - radius, x + radius, y + radius, fill="yellow", outline=""
+        )
+        self.canvas.after(250, lambda i=item: self.canvas.delete(i))
 
     def update(self) -> None:
         self.update_lighting()
