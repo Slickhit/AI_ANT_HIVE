@@ -4,7 +4,15 @@ import random
 import time
 import tkinter as tk
 
-from ..constants import ANT_SIZE, WINDOW_WIDTH, WINDOW_HEIGHT, PALETTE, MOVE_STEP
+from ..constants import (
+    ANT_SIZE,
+    WINDOW_WIDTH,
+    WINDOW_HEIGHT,
+    PALETTE,
+    MOVE_STEP,
+    TILE_SIZE,
+)
+from ..terrain import TILE_TUNNEL
 from ..ai_interface import chat_completion
 from .egg import Egg, hatch_random_ant
 from .worker import WorkerAnt
@@ -258,6 +266,31 @@ class Queen:
         else:
             self.sim.canvas.itemconfigure(self.thinking_item, state="hidden")
 
+    def update_visibility(self) -> None:
+        """Hide or show the queen based on the underlying terrain tile."""
+        if not hasattr(self.sim, "terrain"):
+            return
+        x1, y1, x2, y2 = self.sim.canvas.coords(self.item)
+        cx = (x1 + x2) / 2
+        cy = (y1 + y2) / 2
+        tx = int(cx // TILE_SIZE)
+        ty = int(cy // TILE_SIZE)
+        visible = self.sim.terrain.get_cell(tx, ty) == TILE_TUNNEL
+        state = "normal" if visible else "hidden"
+        for item in (
+            self.item,
+            self.hunger_bar_bg,
+            self.hunger_bar,
+            self.glow_item,
+            self.expression_item,
+            self.thinking_item,
+        ):
+            if item is not None:
+                try:
+                    self.sim.canvas.itemconfigure(item, state=state)
+                except Exception:
+                    pass
+
     def update(self) -> None:
         # Avoid blocking the Tkinter event loop with a long sleep.
         # The previous implementation paused for four seconds,
@@ -318,3 +351,4 @@ class Queen:
                 self.command_cooldown = 50
         self.update_hunger_bar()
         self.update_thinking_indicator()
+        self.update_visibility()
