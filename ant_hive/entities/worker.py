@@ -8,7 +8,7 @@ from ..constants import (
     PALETTE,
 )
 from ..utils import blend_color
-from ..terrain import TILE_SIZE, TILE_TUNNEL, TILE_SAND, TILE_ROCK, TILE_COLLAPSED
+from ..terrain import TILE_SIZE
 from .base_ant import BaseAnt
 
 

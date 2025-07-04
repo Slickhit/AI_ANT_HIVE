@@ -1,5 +1,4 @@
 import tkinter as tk
-from tkinter import font
 
 class AntHiveUI(tk.Tk):
     def __init__(self):

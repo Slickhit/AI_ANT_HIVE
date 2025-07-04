@@ -1,6 +1,3 @@
-import time
-
-
 def lerp(a: float, b: float, t: float) -> float:
     return a + (b - a) * max(0.0, min(1.0, t))
 
