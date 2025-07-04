@@ -226,9 +226,11 @@ class Queen:
             # simulation where eggs eventually hatch.
             self.hatch_ant(x, y)
 
-    def hatch_ant(self, x: int, y: int) -> None:
+    def hatch_ant(self, x: int, y: int):
         """Hatch a new ant at the given position using weighted role probabilities."""
-        self.sim.ants.append(hatch_random_ant(self.sim, x, y))
+        ant = hatch_random_ant(self.sim, x, y)
+        self.sim.ants.append(ant)
+        return ant
 
     def begin_reproduction_cycle(self) -> None:
         if not self.ready_to_mate:

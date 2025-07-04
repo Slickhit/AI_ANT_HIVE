@@ -204,6 +204,8 @@ class Spider:
                 if hasattr(ant, "image_id"):
                     self.sim.canvas.delete(ant.image_id)
                 self.sim.ants.remove(ant)
+                if hasattr(self.sim, "log_event"):
+                    self.sim.log_event(f"Spider killed {ant.role} {ant.ant_id}")
                 self.consumed += 1
                 if self.consumed % 3 == 0:
                     self.hunger += 1
