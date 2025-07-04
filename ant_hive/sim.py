@@ -176,12 +176,16 @@ class AntSim:
         if brightness >= 0.999:
             # Daytime without overlay
             self.canvas.itemconfigure(self.overlay, state="hidden")
+            for predator in self.predators:
+                predator.set_visible(False)
         else:
             self.canvas.itemconfigure(
                 self.overlay,
                 state="normal",
                 stipple=stipple_from_brightness(brightness),
             )
+            for predator in self.predators:
+                predator.set_visible(True)
 
         cycle = t % 60.0
         icon = "\u2600\ufe0f" if cycle < 30.0 else "\U0001f319"

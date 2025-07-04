@@ -37,6 +37,20 @@ class Spider:
         self.life_bar = sim.canvas.create_rectangle(x, y - 4, x + ANT_SIZE, y - 2, fill=PALETTE["bar_green"])
         self.hunger_bar_bg = sim.canvas.create_rectangle(x, y + ANT_SIZE + 2, x + ANT_SIZE, y + ANT_SIZE + 4, fill=PALETTE["bar_bg"])
         self.hunger_bar = sim.canvas.create_rectangle(x, y + ANT_SIZE + 2, x + ANT_SIZE, y + ANT_SIZE + 4, fill=PALETTE["bar_green"])
+        self.visible = True
+
+    def set_visible(self, visible: bool) -> None:
+        """Show or hide the spider and its UI elements."""
+        state = "normal" if visible else "hidden"
+        for item in (
+            self.item,
+            self.life_bar_bg,
+            self.life_bar,
+            self.hunger_bar_bg,
+            self.hunger_bar,
+        ):
+            self.sim.canvas.itemconfigure(item, state=state)
+        self.visible = visible
 
     def life_color(self) -> str:
         if self.vitality > 60:
