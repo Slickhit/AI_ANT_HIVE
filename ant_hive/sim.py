@@ -187,6 +187,7 @@ class AntSim:
         self.current_day = int(t // 60.0) + 1
         self.canvas.itemconfigure(self.status_icon, text=f"{icon} Day {self.current_day}")
 
+
     def refresh_ant_stats(self) -> None:
         active_ids = set()
         for ant in self.ants:
