@@ -5,10 +5,11 @@ from ..constants import (
     ENERGY_MAX,
     WINDOW_WIDTH,
     WINDOW_HEIGHT,
+    PALETTE,
 )
-from ..terrain import TILE_SIZE
-from .base_ant import BaseAnt
+from ..utils import blend_color
 from ..terrain import TILE_SIZE, TILE_TUNNEL, TILE_SAND, TILE_ROCK, TILE_COLLAPSED
+from .base_ant import BaseAnt
 
 
 class WorkerAnt(BaseAnt):
@@ -101,6 +102,11 @@ class WorkerAnt(BaseAnt):
             y1 = start[1] + ANT_SIZE / 2
             x2 = coords[0] + ANT_SIZE / 2
             y2 = coords[1] + ANT_SIZE / 2
-            trail = self.sim.canvas.create_line(x1, y1, x2, y2, fill=self.color)
+            trail_color = blend_color(
+                self.sim.canvas, self.color, PALETTE["background"], 0.5
+            )
+            trail = self.sim.canvas.create_line(
+                x1, y1, x2, y2, fill=trail_color, dash=(2, 2)
+            )
             self.sim.canvas.after(300, lambda t=trail: self.sim.canvas.delete(t))
         self.last_pos = (coords[0], coords[1])
