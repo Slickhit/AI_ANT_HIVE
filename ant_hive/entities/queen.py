@@ -6,7 +6,7 @@ import tkinter as tk
 
 from ..constants import ANT_SIZE, WINDOW_WIDTH, WINDOW_HEIGHT, PALETTE, MOVE_STEP
 from ..ai_interface import chat_completion
-from .egg import Egg
+from .egg import Egg, hatch_random_ant
 from .worker import WorkerAnt
 from .base_ant import BaseAnt
 
@@ -183,7 +183,7 @@ class Queen:
         self.sim.eggs.append(egg)
         if spawn_direct:
             self.sim.eggs.remove(egg)
-            self.sim.ants.append(WorkerAnt(self.sim, x, y, "blue"))
+            self.sim.ants.append(hatch_random_ant(self.sim, x, y))
 
     def command_hive(
         self, message: str, role: str | None = None, radius: int | None = None
