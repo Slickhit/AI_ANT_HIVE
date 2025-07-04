@@ -183,10 +183,14 @@ class Queen:
         self.sim.eggs.append(egg)
         if spawn_direct:
             self.sim.eggs.remove(egg)
+            # In minimal test environments without an egg list,
+            # spawn the ant immediately so behavior matches the full
+            # simulation where eggs eventually hatch.
+            self.hatch_ant(x, y)
+
     def hatch_ant(self, x: int, y: int) -> None:
         """Hatch a new ant at the given position using weighted role probabilities."""
         self.sim.ants.append(hatch_random_ant(self.sim, x, y))
-
 
     def command_hive(
         self, message: str, role: str | None = None, radius: int | None = None
