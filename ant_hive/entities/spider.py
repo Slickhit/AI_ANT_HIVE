@@ -67,6 +67,9 @@ class Spider:
         self.size = size
         self.speed = BASE_SPEED * self.size
         self.food_consumption = BASE_CONSUMPTION * self.size
+        self.attack_radius = 20 * self.size
+        self.fear_radius = 60 * self.size
+        self.lair = (x, y)
         self.has_laid_eggs = False
         self.alive = True
         self.last_is_night = True
@@ -165,18 +168,37 @@ class Spider:
         self.sim.canvas.move(self.item, new_x1 - x1, new_y1 - y1)
 
 
+    def _distance_to(self, ant: BaseAnt) -> float:
+        ax1, ay1, ax2, ay2 = self.sim.canvas.coords(ant.item)
+        ax = (ax1 + ax2) / 2
+        ay = (ay1 + ay2) / 2
+        x1, y1, x2, y2 = self.sim.canvas.coords(self.item)
+        cx = (x1 + x2) / 2
+        cy = (y1 + y2) / 2
+        return ((ax - cx) ** 2 + (ay - cy) ** 2) ** 0.5
+
     def attack_ants(self) -> None:
-        for ant in self.sim.ants[:]:
-            if self.sim.check_collision(self.item, ant.item):
-                ant.consume_energy(20)
-                if ant.energy <= 0:
-                    self.sim.canvas.delete(ant.item)
-                    if hasattr(ant, "image_id"):
-                        self.sim.canvas.delete(ant.image_id)
-                    self.sim.ants.remove(ant)
-                    self.consumed += 1
-                    if self.consumed % 3 == 0:
-                        self.hunger += 1
+        while True:
+            targets = [a for a in self.sim.ants if self._distance_to(a) <= self.attack_radius]
+            if not targets:
+                break
+            ant = min(targets, key=lambda a: a.energy)
+            ant.consume_energy(20)
+            if ant.energy <= 0:
+                self.sim.canvas.delete(ant.item)
+                if hasattr(ant, "image_id"):
+                    self.sim.canvas.delete(ant.image_id)
+                self.sim.ants.remove(ant)
+                self.consumed += 1
+                if self.consumed % 3 == 0:
+                    self.hunger += 1
+            else:
+                break
+
+    def fear_aura(self) -> None:
+        for ant in self.sim.ants:
+            if self._distance_to(ant) <= self.fear_radius:
+                ant.status = "Afraid"
 
     def update(self) -> None:
         if self.vitality <= 0:
@@ -202,6 +224,9 @@ class Spider:
         if getattr(self.sim, "is_night", True):
             self.brain_move()
             self.attack_ants()
+            self.fear_aura()
+        else:
+            self.retreat_to_lair()
         self.update_bars()
         x1, y1, x2, y2 = self.sim.canvas.coords(self.item)
         cx = (x1 + x2) / 2
@@ -219,6 +244,20 @@ class Spider:
         y = int((y1 + y2) / 2)
         Den(self.sim, x, y)
 
+    def retreat_to_lair(self) -> None:
+        x1, y1, x2, y2 = self.sim.canvas.coords(self.item)
+        cx = (x1 + x2) / 2
+        cy = (y1 + y2) / 2
+        lx, ly = self.lair
+        dx = MOVE_STEP if cx < lx else -MOVE_STEP if cx > lx else 0
+        dy = MOVE_STEP if cy < ly else -MOVE_STEP if cy > ly else 0
+        scale = self.speed / MOVE_STEP
+        dx *= scale
+        dy *= scale
+        new_x1 = max(0, min(WINDOW_WIDTH - ANT_SIZE, x1 + dx))
+        new_y1 = max(0, min(WINDOW_HEIGHT - ANT_SIZE, y1 + dy))
+        self.sim.canvas.move(self.item, new_x1 - x1, new_y1 - y1)
+
     def sleep_cycle(self) -> None:
         self.grow()
 
@@ -226,3 +265,5 @@ class Spider:
         self.size *= 1.20
         self.speed = BASE_SPEED * self.size
         self.food_consumption = BASE_CONSUMPTION * self.size
+        self.attack_radius = 20 * self.size
+        self.fear_radius = 60 * self.size
