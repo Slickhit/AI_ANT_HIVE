@@ -44,6 +44,21 @@ When the queen lays an egg it will hatch into a random ant type. The
 distribution is weighted so that 50% of eggs become workers, 20% scouts,
 20% soldiers and 10% nurses.
 
+### Predator Spiders
+
+Spiders stalk the colony when night falls. They stay hidden during the day and
+emerge only after sunset. Each spider claims a lair territory and slowly grows
+every morning, increasing its size, speed and food consumption.
+
+When a spider's vitality reaches zero it lays an egg at the point of death. That
+egg becomes a **Den**, instantly hatching three spiderlings. These spiderlings
+remain near the den and hunt just like their parent.
+
+While hunting at night, spiders display a small red `Sensing...` label when an
+ant is within range, representing the creature's fear‑inducing aura. This
+predatory pressure naturally keeps the ant population from growing without bound
+as spiders will occasionally catch and consume inattentive ants.
+
 ## Development
 
 The `tests` folder contains a small test suite. Run it with:
