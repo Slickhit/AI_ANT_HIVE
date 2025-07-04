@@ -68,6 +68,10 @@ class Terrain:
                         self.grid[x][y] = TILE_ROCK
         self.rects: list[list[int]] = [[0] * height for _ in range(width)]
         self.shades: list[list[int]] = [[0] * height for _ in range(width)]
+        self.explored: list[list[bool]] = [
+            [False for _ in range(height)] for _ in range(width)
+        ]
+        self.fog: list[list[int]] = [[0] * height for _ in range(width)]
         self._render()
 
     def _render(self) -> None:
@@ -91,6 +95,7 @@ class Terrain:
                     )
                 self.rects[x][y] = rect
                 self._update_shading(x, y)
+                self._update_fog(x, y)
 
     def _update_shading(self, x: int, y: int) -> None:
         if self.shades[x][y]:
@@ -113,6 +118,96 @@ class Terrain:
                     outline="",
                 )
                 break
+
+    def _update_fog(self, x: int, y: int) -> None:
+        if self.fog[x][y]:
+            if hasattr(self.canvas, "delete"):
+                self.canvas.delete(self.fog[x][y])
+            self.fog[x][y] = 0
+        if not self.explored[x][y]:
+            self.fog[x][y] = self.canvas.create_rectangle(
+                x * TILE_SIZE,
+                y * TILE_SIZE,
+                (x + 1) * TILE_SIZE,
+                (y + 1) * TILE_SIZE,
+                fill="#000000",
+                stipple="gray75",
+                outline="",
+            )
+
+    def set_explored(self, x: int, y: int) -> None:
+        if 0 <= x < self.width and 0 <= y < self.height:
+            if not self.explored[x][y]:
+                self.explored[x][y] = True
+                if self.fog[x][y]:
+                    if hasattr(self.canvas, "delete"):
+                        self.canvas.delete(self.fog[x][y])
+                    self.fog[x][y] = 0
+
+    def initialize_explored(self, cx: int, cy: int, radius: int = 3) -> None:
+        for dx in range(-radius, radius + 1):
+            for dy in range(-radius, radius + 1):
+                self.set_explored(cx + dx, cy + dy)
+
+    def expand(self, new_width: int, new_height: int) -> None:
+        if new_width <= self.width and new_height <= self.height:
+            return
+        for x in range(self.width, new_width):
+            self.grid.append([TILE_SAND for _ in range(self.height)])
+            self.rects.append([0] * self.height)
+            self.shades.append([0] * self.height)
+            self.explored.append([False] * self.height)
+            self.fog.append([0] * self.height)
+        for x in range(new_width):
+            self.grid[x].extend([TILE_SAND] * (new_height - len(self.grid[x])))
+            self.rects[x].extend([0] * (new_height - len(self.rects[x])))
+            self.shades[x].extend([0] * (new_height - len(self.shades[x])))
+            self.explored[x].extend([False] * (new_height - len(self.explored[x])))
+            self.fog[x].extend([0] * (new_height - len(self.fog[x])))
+        old_width, old_height = self.width, self.height
+        self.width, self.height = new_width, new_height
+        for x in range(old_width, new_width):
+            for y in range(new_height):
+                state = self.grid[x][y]
+                if hasattr(self.canvas, "create_image") and self.images.get(state):
+                    rect = self.canvas.create_image(
+                        x * TILE_SIZE,
+                        y * TILE_SIZE,
+                        anchor="nw",
+                        image=self.images[state],
+                    )
+                else:
+                    rect = self.canvas.create_rectangle(
+                        x * TILE_SIZE,
+                        y * TILE_SIZE,
+                        (x + 1) * TILE_SIZE,
+                        (y + 1) * TILE_SIZE,
+                        fill=self.colors[state],
+                    )
+                self.rects[x][y] = rect
+                self._update_shading(x, y)
+                self._update_fog(x, y)
+        for x in range(0, old_width):
+            for y in range(old_height, new_height):
+                state = self.grid[x][y]
+                if hasattr(self.canvas, "create_image") and self.images.get(state):
+                    rect = self.canvas.create_image(
+                        x * TILE_SIZE,
+                        y * TILE_SIZE,
+                        anchor="nw",
+                        image=self.images[state],
+                    )
+                else:
+                    rect = self.canvas.create_rectangle(
+                        x * TILE_SIZE,
+                        y * TILE_SIZE,
+                        (x + 1) * TILE_SIZE,
+                        (y + 1) * TILE_SIZE,
+                        fill=self.colors[state],
+                    )
+                self.rects[x][y] = rect
+                self._update_shading(x, y)
+                self._update_fog(x, y)
 
     def get_cell(self, x: int, y: int) -> str:
         if x < 0 or y < 0 or x >= self.width or y >= self.height:
@@ -142,7 +237,9 @@ class Terrain:
                     fill=self.colors[state],
                 )
             self._update_shading(x, y)
+            self._update_fog(x, y)
             for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
                 nx, ny = x + dx, y + dy
                 if 0 <= nx < self.width and 0 <= ny < self.height:
                     self._update_shading(nx, ny)
+                    self._update_fog(nx, ny)

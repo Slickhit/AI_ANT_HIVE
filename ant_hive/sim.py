@@ -44,6 +44,15 @@ class AntSim:
             highlightthickness=0,
         )
         self.canvas.pack()
+        self.canvas.configure(scrollregion=(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT))
+        self.canvas.focus_set()
+        self.canvas.bind("<Left>", lambda e: self.canvas.xview_scroll(-20, "units"))
+        self.canvas.bind("<Right>", lambda e: self.canvas.xview_scroll(20, "units"))
+        self.canvas.bind("<Up>", lambda e: self.canvas.yview_scroll(-20, "units"))
+        self.canvas.bind("<Down>", lambda e: self.canvas.yview_scroll(20, "units"))
+        self.map_width = WINDOW_WIDTH
+        self.map_height = WINDOW_HEIGHT
+        self.expansion_level = 1
         self.start_time = time.time()
         self.is_night = False
         self.overlay = self.canvas.create_rectangle(
@@ -158,6 +167,7 @@ class AntSim:
             self.terrain.set_cell(rx, ry, TILE_ROCK)
         start_x = self.grid_width // 2
         start_y = self.grid_height // 2
+        self.terrain.initialize_explored(start_x, start_y, radius=3)
 
         center_x = start_x * TILE_SIZE
         center_y = start_y * TILE_SIZE
@@ -291,6 +301,25 @@ class AntSim:
         )
         self.canvas.after(250, lambda i=item: self.canvas.delete(i))
 
+    def maybe_expand_map(self) -> None:
+        if len(self.ants) > self.expansion_level * 10:
+            self.expansion_level += 1
+            self.map_width += 200
+            self.map_height += 150
+            self.canvas.configure(scrollregion=(0, 0, self.map_width, self.map_height))
+            new_grid_w = self.map_width // TILE_SIZE
+            new_grid_h = self.map_height // TILE_SIZE
+            self.terrain.expand(new_grid_w, new_grid_h)
+            for row in self.pheromones:
+                row.extend([0.0] * (new_grid_h - len(row)))
+            for row in self.pheromone_items:
+                row.extend([None] * (new_grid_h - len(row)))
+            for _ in range(len(self.pheromones), new_grid_w):
+                self.pheromones.append([0.0] * new_grid_h)
+                self.pheromone_items.append([None] * new_grid_h)
+            self.grid_width = new_grid_w
+            self.grid_height = new_grid_h
+
     def update(self) -> None:
         self.update_lighting()
         for ant in self.ants[:]:
@@ -316,4 +345,5 @@ class AntSim:
         self.stats_label.configure(text=stats)
         self.refresh_ant_stats()
         self.refresh_colony_stats()
+        self.maybe_expand_map()
         self.master.after(100, self.update)

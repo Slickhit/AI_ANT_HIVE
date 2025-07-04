@@ -79,8 +79,10 @@ class BaseAnt:
         if self.energy <= 0:
             return
         x1, y1, _, _ = self.sim.canvas.coords(self.item)
-        new_x1 = max(0, min(WINDOW_WIDTH - ANT_SIZE, x1 + dx))
-        new_y1 = max(0, min(WINDOW_HEIGHT - ANT_SIZE, y1 + dy))
+        max_w = getattr(self.sim, "map_width", WINDOW_WIDTH)
+        max_h = getattr(self.sim, "map_height", WINDOW_HEIGHT)
+        new_x1 = max(0, min(max_w - ANT_SIZE, x1 + dx))
+        new_y1 = max(0, min(max_h - ANT_SIZE, y1 + dy))
 
         cost = MOVE_ENERGY_COST
         if self.terrain:
@@ -103,6 +105,7 @@ class BaseAnt:
             orig_y = int((y1 + ANT_SIZE / 2) // TILE_SIZE)
             if self.terrain.get_cell(orig_x, orig_y) == TILE_SAND:
                 self.terrain.set_cell(orig_x, orig_y, TILE_TUNNEL)
+            self.terrain.set_explored(tile_x, tile_y)
         if self.energy < cost:
             return
         self.energy -= cost
