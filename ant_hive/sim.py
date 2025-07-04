@@ -397,8 +397,7 @@ class AntSim:
             )
             self.predator_alert_label.pack(pady=5)
         except Exception:
-            pass
-        self.predator_alert_label = True  # type: ignore
+            self.predator_alert_label = True  # type: ignore
         if hasattr(self.master, "bell"):
             try:
                 self.master.bell()
