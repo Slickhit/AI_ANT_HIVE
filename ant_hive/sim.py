@@ -152,13 +152,15 @@ class AntSim:
             rx = random.randint(0, self.terrain.width - 1)
             ry = random.randint(self.terrain.height // 2, self.terrain.height - 1)
             self.terrain.set_cell(rx, ry, TILE_ROCK)
-        center_x = (self.grid_width // 2) * TILE_SIZE
-        center_y = (self.grid_height * 2 // 3) * TILE_SIZE
+        start_x = self.grid_width // 2
+        start_y = self.grid_height // 2
+        center_x = start_x * TILE_SIZE
+        center_y = start_y * TILE_SIZE
         for dx in range(-2, 3):
             for dy in range(-2, 3):
                 self.terrain.set_cell(
-                    self.grid_width // 2 + dx,
-                    self.grid_height * 2 // 3 + dy,
+                    start_x + dx,
+                    start_y + dy,
                     TILE_TUNNEL,
                 )
         self.food: int | None = None
