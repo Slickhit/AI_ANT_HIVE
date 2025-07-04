@@ -8,6 +8,11 @@ class NurseAnt(BaseAnt):
     """Ant that tends to the queen, feeding her when nearby."""
 
     def update(self) -> None:
+        if getattr(self.sim, "is_night", False):
+            self.move_towards(self.sim.queen.item)
+            coords = self.sim.canvas.coords(self.item)
+            self.last_pos = (coords[0], coords[1])
+            return
         if self.energy <= 0:
             self.rest()
         else:

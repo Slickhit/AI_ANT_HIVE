@@ -39,6 +39,15 @@ class WorkerAnt(BaseAnt):
         if self.energy <= 0:
             self.die()
             return
+        if getattr(self.sim, "is_night", False):
+            self.move_towards(self.sim.queen.item)
+            coords = self.sim.canvas.coords(self.item)
+            self.last_pos = (coords[0], coords[1])
+            from ..constants import ENERGY_DECAY
+            self.energy = max(0, self.energy - ENERGY_DECAY)
+            if self.energy <= 0:
+                self.die()
+            return
         start = self.sim.canvas.coords(self.item)
         best_dir = None
         best_value = -1.0

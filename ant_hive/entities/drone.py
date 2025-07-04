@@ -17,7 +17,10 @@ class DroneAnt(BaseAnt):
             return
         if self.cooldown > 0:
             self.cooldown -= 1
-        self.move_random()
+        if getattr(self.sim, "is_night", False):
+            self.move_towards(self.sim.queen.item)
+        else:
+            self.move_random()
         qx1, qy1, qx2, qy2 = self.sim.canvas.coords(self.sim.queen.item)
         ax1, ay1, ax2, ay2 = self.sim.canvas.coords(self.item)
         close = (abs((ax1 + ax2) / 2 - (qx1 + qx2) / 2) <= ANT_SIZE and

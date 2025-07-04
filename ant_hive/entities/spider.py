@@ -233,10 +233,11 @@ class Spider:
                 self.sim.canvas.delete(item)
             return
         self.vitality -= 0.05 * self.food_consumption
-        if not getattr(self.sim, "is_night", True) and self.last_is_night:
+        night = getattr(self.sim, "is_night", True)
+        if not night and self.last_is_night:
             self.sleep_cycle()
-        self.last_is_night = getattr(self.sim, "is_night", True)
-        if getattr(self.sim, "is_night", True):
+        self.last_is_night = night
+        if night:
             self.brain_move()
             self.attack_ants()
             self.fear_aura()

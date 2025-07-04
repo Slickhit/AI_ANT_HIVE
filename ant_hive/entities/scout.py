@@ -12,6 +12,12 @@ class ScoutAnt(BaseAnt):
         self.visited: set[tuple[float, float]] = {(float(x), float(y))}
 
     def update(self) -> None:
+        if getattr(self.sim, "is_night", False):
+            self.move_towards(self.sim.queen.item)
+            coords = self.sim.canvas.coords(self.item)
+            self.last_pos = (coords[0], coords[1])
+            self.visited.add(self.last_pos)
+            return
         x1, y1, _, _ = self.sim.canvas.coords(self.item)
         moves = []
         for dx in (-MOVE_STEP, 0, MOVE_STEP):
