@@ -92,12 +92,15 @@ def test_spider_hunger_increases_after_three_ants():
 def test_spider_update_skips_during_day():
     sim = FakeSim()
     sim.is_night = False
-    spider = Spider(sim, 0, 0)
+    spider = Spider(sim, 20, 0)
     ant = BaseAnt(sim, 0, 0)
     sim.ants.append(ant)
-    start_coords = sim.canvas.coords(spider.item)
+    # move spider away from its lair
+    sim.canvas.coords(spider.item, 30, 0, 30 + ANT_SIZE, ANT_SIZE)
     spider.update()
-    assert sim.canvas.coords(spider.item) == start_coords
+    coords = sim.canvas.coords(spider.item)
+    # spider should move back toward lair
+    assert coords[0] < 30
     assert ant.energy == 100
 
 
@@ -120,3 +123,45 @@ def test_spider_growth_increases_speed():
     assert spider.size > 1.0
     assert spider.speed > start_speed
     assert spider.food_consumption > start_consumption
+
+
+def test_spider_attack_radius_and_priority():
+    sim = FakeSim()
+    spider = Spider(sim, 0, 0)
+    ant1 = BaseAnt(sim, 10, 0)
+    ant2 = BaseAnt(sim, 5, 0)
+    ant2.energy = 10
+    ant3 = BaseAnt(sim, 100, 100)
+    sim.ants.extend([ant1, ant2, ant3])
+    spider.attack_ants()
+    assert ant2 not in sim.ants
+    assert ant1 in sim.ants
+
+
+def test_spider_retreats_to_lair():
+    sim = FakeSim()
+    spider = Spider(sim, 20, 0)
+    sim.canvas.coords(spider.item, 30, 0, 30 + ANT_SIZE, ANT_SIZE)
+    sim.is_night = False
+    spider.update()
+    coords = sim.canvas.coords(spider.item)
+    assert coords[0] < 30
+
+
+def test_spider_growth_scales_new_attributes():
+    sim = FakeSim()
+    spider = Spider(sim, 0, 0)
+    attack = spider.attack_radius
+    fear = spider.fear_radius
+    spider.sleep_cycle()
+    assert spider.attack_radius > attack
+    assert spider.fear_radius > fear
+
+
+def test_fear_aura_affects_ants():
+    sim = FakeSim()
+    spider = Spider(sim, 0, 0)
+    ant = BaseAnt(sim, 10, 0)
+    sim.ants.append(ant)
+    spider.fear_aura()
+    assert ant.status == "Afraid"
