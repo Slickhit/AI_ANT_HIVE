@@ -12,8 +12,9 @@ PALETTE = {
 MONO_FONT = ("JetBrains Mono", 10)
 HEADER_FONT = ("JetBrains Mono", 10, "bold underline")
 
-WINDOW_WIDTH = 400
-WINDOW_HEIGHT = 600
+# Expand the available map area for larger colony layouts
+WINDOW_WIDTH = 1600
+WINDOW_HEIGHT = 1200
 SIDEBAR_WIDTH = 150
 ANT_SIZE = 10
 FOOD_SIZE = 8

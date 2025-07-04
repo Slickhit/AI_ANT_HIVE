@@ -152,16 +152,22 @@ class AntSim:
             rx = random.randint(0, self.terrain.width - 1)
             ry = random.randint(self.terrain.height // 2, self.terrain.height - 1)
             self.terrain.set_cell(rx, ry, TILE_ROCK)
+        center_x = (self.grid_width // 2) * TILE_SIZE
+        center_y = (self.grid_height // 3) * TILE_SIZE
         self.food: int = self.canvas.create_rectangle(
-            180, 20, 180 + 8, 20 + 8, fill="green"
+            center_x - TILE_SIZE,
+            TILE_SIZE,
+            center_x - TILE_SIZE + FOOD_SIZE,
+            TILE_SIZE + FOOD_SIZE,
+            fill="green",
         )
-        self.queen: Queen = Queen(self, 180, 570)
+        self.queen: Queen = Queen(self, center_x, center_y)
         self.ants: List[BaseAnt] = [
-            WorkerAnt(self, 195, 295, "blue"),
-            WorkerAnt(self, 215, 295, "red"),
-            ScoutAnt(self, 235, 295, "black"),
-            SoldierAnt(self, 255, 295, "orange"),
-            NurseAnt(self, 275, 295, "pink"),
+            WorkerAnt(self, center_x + 15, center_y + 5, "blue"),
+            WorkerAnt(self, center_x + 35, center_y + 5, "red"),
+            ScoutAnt(self, center_x + 55, center_y + 5, "black"),
+            SoldierAnt(self, center_x + 75, center_y + 5, "orange"),
+            NurseAnt(self, center_x + 95, center_y + 5, "pink"),
         ]
         self.predators.append(Spider(self, 50, 50))
         self.food_collected: int = 0
